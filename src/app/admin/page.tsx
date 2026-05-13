@@ -1,0 +1,244 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { BarChart3, Plus, Search, Trash2 } from "lucide-react";
+import { useAuth } from "@/components/auth-provider";
+import { Button, EmptyState, Field, Input, Section, Select, Textarea } from "@/components/ui";
+import { db } from "@/lib/firebase";
+import { deleteDoc, doc } from "firebase/firestore";
+import { getAllNotes, getAllOrders, getProductOptions, saveNote, saveProductOptions } from "@/lib/firestore";
+import { defaultOptions } from "@/lib/default-options";
+import { formatMoney } from "@/lib/utils";
+import { orderStatuses, type BottleSize, type FragranceNote, type OrderStatus, type PerfumeOrder, type ProductOptions, type ScentStrength } from "@/lib/types";
+
+const blankNote = { name: "", category: "top" as const, description: "", imageUrl: "", active: true };
+
+export default function AdminPage() {
+  const { user, profile, loading } = useAuth();
+  const router = useRouter();
+  const [notes, setNotes] = useState<FragranceNote[]>([]);
+  const [orders, setOrders] = useState<PerfumeOrder[]>([]);
+  const [options, setOptions] = useState<ProductOptions>(defaultOptions);
+  const [noteForm, setNoteForm] = useState<Partial<FragranceNote> & { name: string; category: "top" | "middle" | "base" }>(blankNote);
+  const [query, setQuery] = useState("");
+  const [tab, setTab] = useState<"orders" | "notes" | "pricing">("orders");
+  const [saving, setSaving] = useState(false);
+
+  async function loadData() {
+    const [allNotes, allOrders, productOptions] = await Promise.all([getAllNotes(), getAllOrders(), getProductOptions()]);
+    setNotes(allNotes);
+    setOrders(allOrders);
+    setOptions(productOptions);
+  }
+
+  useEffect(() => {
+    if (!loading && !user) router.push("/login");
+    if (!loading && profile && profile.role !== "admin") router.push("/dashboard");
+    if (profile?.role === "admin") loadData();
+  }, [loading, profile, user, router]);
+
+  const filteredOrders = useMemo(() => {
+    const needle = query.toLowerCase();
+    return orders.filter((order) => [order.customerName, order.customerEmail, order.perfumeName, order.orderStatus].join(" ").toLowerCase().includes(needle));
+  }, [orders, query]);
+
+  const revenue = orders.filter((order) => order.paymentStatus === "paid").reduce((sum, order) => sum + order.price, 0);
+
+  async function submitNote(event: React.FormEvent) {
+    event.preventDefault();
+    setSaving(true);
+    await saveNote(noteForm);
+    setNoteForm(blankNote);
+    await loadData();
+    setSaving(false);
+  }
+
+  async function removeNote(id: string) {
+    await deleteDoc(doc(db, "notes", id));
+    await loadData();
+  }
+
+  async function updateStatus(order: PerfumeOrder, status: OrderStatus) {
+    if (!user) return;
+    const idToken = await user.getIdToken();
+    await fetch(`/api/orders/${order.id}/status`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
+      body: JSON.stringify({ status })
+    });
+    await loadData();
+  }
+
+  async function saveOptions() {
+    setSaving(true);
+    await saveProductOptions(options);
+    setSaving(false);
+  }
+
+  if (loading || profile?.role !== "admin") return <Section><div className="glass h-80 animate-pulse rounded-[2rem]" /></Section>;
+
+  return (
+    <Section>
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <p className="text-sm font-semibold uppercase tracking-[0.28em] text-champagne">Admin dashboard</p>
+          <h1 className="mt-3 font-serif text-5xl font-semibold">Studio command center</h1>
+        </div>
+        <div className="flex rounded-full border border-ink/10 bg-white/60 p-1">
+          {(["orders", "notes", "pricing"] as const).map((item) => (
+            <button key={item} onClick={() => setTab(item)} className={`rounded-full px-4 py-2 text-sm font-semibold capitalize ${tab === item ? "bg-ink text-pearl" : "text-ink/65"}`}>{item}</button>
+          ))}
+        </div>
+      </div>
+      <div className="mt-8 grid gap-4 md:grid-cols-3">
+        <div className="glass rounded-[1.25rem] p-5"><BarChart3 className="h-5 w-5 text-rosewood" /><p className="mt-3 text-sm text-ink/60">Paid revenue</p><p className="font-serif text-3xl font-semibold">{formatMoney(revenue)}</p></div>
+        <div className="glass rounded-[1.25rem] p-5"><p className="text-sm text-ink/60">Orders</p><p className="font-serif text-3xl font-semibold">{orders.length}</p></div>
+        <div className="glass rounded-[1.25rem] p-5"><p className="text-sm text-ink/60">Active notes</p><p className="font-serif text-3xl font-semibold">{notes.filter((n) => n.active).length}</p></div>
+      </div>
+      {tab === "orders" ? (
+        <div className="mt-8 grid gap-4">
+          <div className="relative"><Search className="absolute left-4 top-3.5 h-4 w-4 text-ink/45" /><Input className="pl-11" placeholder="Search orders, customers, statuses" value={query} onChange={(e) => setQuery(e.target.value)} /></div>
+          {filteredOrders.length === 0 ? <EmptyState title="No orders found" body="Paid and pending orders will appear here once customers check out." /> : null}
+          {filteredOrders.map((order) => (
+            <article className="glass rounded-[1.5rem] p-6" key={order.id}>
+              <div className="grid gap-4 lg:grid-cols-[1fr_220px]">
+                <div>
+                  <h2 className="font-serif text-3xl font-semibold">{order.perfumeName}</h2>
+                  <p className="text-sm text-ink/60">{order.customerName} · {order.customerEmail} · {formatMoney(order.price)}</p>
+                  <p className="mt-3 text-sm text-ink/68">Payment: {order.paymentStatus}</p>
+                </div>
+                <Select value={order.orderStatus} onChange={(e) => updateStatus(order, e.target.value as OrderStatus)}>
+                  {orderStatuses.map((status) => <option key={status} value={status}>{status.replaceAll("_", " ")}</option>)}
+                </Select>
+              </div>
+            </article>
+          ))}
+        </div>
+      ) : null}
+      {tab === "notes" ? (
+        <div className="mt-8 grid gap-6 lg:grid-cols-[380px_1fr]">
+          <form onSubmit={submitNote} className="glass grid h-fit gap-4 rounded-[1.5rem] p-6">
+            <h2 className="font-serif text-3xl font-semibold">{noteForm.id ? "Edit note" : "Add note"}</h2>
+            <Field label="Name"><Input value={noteForm.name} onChange={(e) => setNoteForm({ ...noteForm, name: e.target.value })} required /></Field>
+            <Field label="Category"><Select value={noteForm.category} onChange={(e) => setNoteForm({ ...noteForm, category: e.target.value as "top" | "middle" | "base" })}><option value="top">Top</option><option value="middle">Middle / heart</option><option value="base">Base</option></Select></Field>
+            <Field label="Description"><Textarea value={noteForm.description || ""} onChange={(e) => setNoteForm({ ...noteForm, description: e.target.value })} /></Field>
+            <Field label="Image or icon URL"><Input value={noteForm.imageUrl || ""} onChange={(e) => setNoteForm({ ...noteForm, imageUrl: e.target.value })} /></Field>
+            <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={noteForm.active ?? true} onChange={(e) => setNoteForm({ ...noteForm, active: e.target.checked })} /> Active</label>
+            <Button loading={saving}><Plus className="h-4 w-4" /> Save note</Button>
+          </form>
+          <div className="grid gap-3">
+            {notes.map((note) => (
+              <div className="glass flex flex-wrap items-center justify-between gap-3 rounded-[1.25rem] p-4" key={note.id}>
+                <button className="text-left" onClick={() => setNoteForm(note)}>
+                  <strong>{note.name}</strong>
+                  <span className="ml-3 rounded-full bg-ink/5 px-2 py-1 text-xs capitalize">{note.category}</span>
+                  <p className="mt-1 text-sm text-ink/60">{note.description || "No description"}</p>
+                </button>
+                <Button variant="ghost" onClick={() => removeNote(note.id)}><Trash2 className="h-4 w-4" /></Button>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+      {tab === "pricing" ? <PricingEditor options={options} setOptions={setOptions} save={saveOptions} saving={saving} /> : null}
+    </Section>
+  );
+}
+
+function PricingEditor({ options, setOptions, save, saving }: { options: ProductOptions; setOptions: (options: ProductOptions) => void; save: () => void; saving: boolean }) {
+  function slug(value: string) {
+    return value.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || crypto.randomUUID();
+  }
+
+  function addSize() {
+    setOptions({
+      ...options,
+      bottleSizes: [
+        ...options.bottleSizes,
+        { id: `size-${crypto.randomUUID()}`, name: "New Bottle", ml: 50, price: 100, active: true }
+      ]
+    });
+  }
+
+  function addStrength() {
+    setOptions({
+      ...options,
+      scentStrengths: [
+        ...options.scentStrengths,
+        { id: `strength-${crypto.randomUUID()}`, name: "New Strength", description: "", priceModifier: 0, active: true }
+      ]
+    });
+  }
+
+  function updateSize(index: number, patch: Partial<BottleSize>) {
+    setOptions({
+      ...options,
+      bottleSizes: options.bottleSizes.map((item, i) => {
+        const next = i === index ? { ...item, ...patch } : item;
+        return patch.name && item.id.startsWith("size-") ? { ...next, id: slug(patch.name) } : next;
+      })
+    });
+  }
+  function updateStrength(index: number, patch: Partial<ScentStrength>) {
+    setOptions({
+      ...options,
+      scentStrengths: options.scentStrengths.map((item, i) => {
+        const next = i === index ? { ...item, ...patch } : item;
+        return patch.name && item.id.startsWith("strength-") ? { ...next, id: slug(patch.name) } : next;
+      })
+    });
+  }
+
+  function removeSize(index: number) {
+    setOptions({ ...options, bottleSizes: options.bottleSizes.filter((_, i) => i !== index) });
+  }
+
+  function removeStrength(index: number) {
+    setOptions({ ...options, scentStrengths: options.scentStrengths.filter((_, i) => i !== index) });
+  }
+
+  return (
+    <div className="mt-8 grid gap-6">
+      <div className="glass rounded-[1.5rem] p-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="font-serif text-3xl font-semibold">Bottle sizes</h2>
+          <Button type="button" variant="secondary" onClick={addSize}><Plus className="h-4 w-4" /> Add size</Button>
+        </div>
+        <div className="mt-5 grid gap-3">
+          {options.bottleSizes.map((size, index) => (
+            <div key={size.id} className="grid gap-3 md:grid-cols-[1fr_120px_140px_110px_52px]">
+              <Input value={size.name} onChange={(e) => updateSize(index, { name: e.target.value })} />
+              <Input type="number" value={size.ml} onChange={(e) => updateSize(index, { ml: Number(e.target.value) })} />
+              <Input type="number" value={size.price} onChange={(e) => updateSize(index, { price: Number(e.target.value) })} />
+              <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={size.active} onChange={(e) => updateSize(index, { active: e.target.checked })} /> Active</label>
+              <Button type="button" variant="ghost" onClick={() => removeSize(index)}><Trash2 className="h-4 w-4" /></Button>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="glass rounded-[1.5rem] p-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="font-serif text-3xl font-semibold">Scent strengths</h2>
+          <Button type="button" variant="secondary" onClick={addStrength}><Plus className="h-4 w-4" /> Add strength</Button>
+        </div>
+        <div className="mt-5 grid gap-3">
+          {options.scentStrengths.map((strength, index) => (
+            <div key={strength.id} className="grid gap-3 md:grid-cols-[1fr_1fr_140px_110px_52px]">
+              <Input value={strength.name} onChange={(e) => updateStrength(index, { name: e.target.value })} />
+              <Input value={strength.description} onChange={(e) => updateStrength(index, { description: e.target.value })} />
+              <Input type="number" value={strength.priceModifier} onChange={(e) => updateStrength(index, { priceModifier: Number(e.target.value) })} />
+              <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={strength.active} onChange={(e) => updateStrength(index, { active: e.target.checked })} /> Active</label>
+              <Button type="button" variant="ghost" onClick={() => removeStrength(index)}><Trash2 className="h-4 w-4" /></Button>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="glass grid gap-4 rounded-[1.5rem] p-6 md:grid-cols-2">
+        <Field label="Included notes"><Input type="number" value={options.pricingRules.includedNotes} onChange={(e) => setOptions({ ...options, pricingRules: { ...options.pricingRules, includedNotes: Number(e.target.value) } })} /></Field>
+        <Field label="Extra note price"><Input type="number" value={options.pricingRules.extraNotePrice} onChange={(e) => setOptions({ ...options, pricingRules: { ...options.pricingRules, extraNotePrice: Number(e.target.value) } })} /></Field>
+      </div>
+      <Button onClick={save} loading={saving}>Save pricing</Button>
+    </div>
+  );
+}

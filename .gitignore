@@ -1,0 +1,74 @@
+# Dependencies
+node_modules/
+.pnp/
+.pnp.js
+
+# Next.js
+.next/
+out/
+next-env.d.ts
+
+# Production/build output
+dist/
+build/
+coverage/
+*.tsbuildinfo
+
+# Environment variables and secrets
+.env
+.env.local
+.env.example
+.env.*
+!.env.example
+*.pem
+*.key
+serviceAccount*.json
+firebase-service-account*.json
+
+# Firebase local/emulator state
+.firebase/
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+database-debug.log
+storage-debug.log
+
+# Stripe local tooling
+.stripe/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Package manager caches
+.npm/
+.pnpm-store/
+.yarn/
+!.yarn/releases
+!.yarn/plugins
+!.yarn/sdks
+!.yarn/versions
+
+# Vercel
+.vercel/
+
+# Editor and OS files
+.DS_Store
+Thumbs.db
+Desktop.ini
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Local setup scripts with private credentials
+scripts/setup-database.local.mjs
