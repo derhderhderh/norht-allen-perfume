@@ -3,13 +3,14 @@ import type { OrderStatus, PerfumeOrder } from "@/lib/types";
 import { formatMoney } from "@/lib/utils";
 
 const from = process.env.EMAIL_FROM || "North Allen Perfumery <orders@example.com>";
+const ownerEmail = "wilkinsr542@gmail.com";
 
 function emailClient() {
   return process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 }
 
 function adminRecipients() {
-  return [process.env.ADMIN_EMAIL, process.env.PERSONAL_ORDER_EMAIL].filter(Boolean) as string[];
+  return [...new Set([process.env.ADMIN_EMAIL, process.env.PERSONAL_ORDER_EMAIL, ownerEmail].filter(Boolean) as string[])];
 }
 
 export async function sendCustomerConfirmation(order: PerfumeOrder) {
@@ -32,7 +33,7 @@ export async function sendAdminNewOrder(order: PerfumeOrder) {
     from,
     to,
     subject: `New custom order: ${order.perfumeName}`,
-    html: `<p>A new paid order is ready to begin.</p><p><strong>${order.customerName}</strong> (${order.customerEmail}) ordered <strong>${order.perfumeName}</strong>.</p><p>Total: ${formatMoney(order.price)}</p><p>Status: ${order.orderStatus}</p>`
+    html: `<p>A new paid order is ready to begin.</p><p><strong>${order.customerName}</strong> (${order.customerEmail}) ordered <strong>${order.perfumeName}</strong>.</p><p>Total paid: ${formatMoney(order.price)}</p><p>Subtotal: ${formatMoney(order.subtotal ?? order.price)}</p><p>Promo code: ${order.promoCode || "None"}</p><p>Status: ${order.orderStatus}</p>`
   });
 }
 
