@@ -237,6 +237,7 @@ function PricingEditor({ options, setOptions, save, saving }: { options: Product
       <div className="glass grid gap-4 rounded-[1.5rem] p-6 md:grid-cols-2">
         <Field label="Included notes"><Input type="number" value={options.pricingRules.includedNotes} onChange={(e) => setOptions({ ...options, pricingRules: { ...options.pricingRules, includedNotes: Number(e.target.value) } })} /></Field>
         <Field label="Extra note price"><Input type="number" value={options.pricingRules.extraNotePrice} onChange={(e) => setOptions({ ...options, pricingRules: { ...options.pricingRules, extraNotePrice: Number(e.target.value) } })} /></Field>
+        <Field label="Maximum notes per scent"><Input type="number" value={options.pricingRules.maxNotes ?? 12} onChange={(e) => setOptions({ ...options, pricingRules: { ...options.pricingRules, maxNotes: Number(e.target.value) } })} /></Field>
       </div>
       <Button onClick={save} loading={saving}>Save pricing</Button>
     </div>

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Cormorant_Garamond, Inter } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/components/auth-provider";
+import { BagProvider } from "@/components/bag-provider";
 import { Footer } from "@/components/footer";
 import { Header } from "@/components/header";
 import { Toaster } from "@/components/toaster";
@@ -27,10 +28,12 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     <html lang="en">
       <body className={`${serif.variable} ${sans.variable} min-h-screen bg-veil font-sans antialiased`}>
         <AuthProvider>
-          <Header />
-          <main>{children}</main>
-          <Footer />
-          <Toaster />
+          <BagProvider>
+            <Header />
+            <main>{children}</main>
+            <Footer />
+            <Toaster />
+          </BagProvider>
         </AuthProvider>
       </body>
     </html>

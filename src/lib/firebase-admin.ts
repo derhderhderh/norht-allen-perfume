@@ -3,7 +3,12 @@ import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
 
 function privateKey() {
-  return process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n");
+  const value = process.env.FIREBASE_PRIVATE_KEY;
+  if (!value) return undefined;
+  return value
+    .trim()
+    .replace(/^"|"$/g, "")
+    .replace(/\\n/g, "\n");
 }
 
 function getAdminApp(): App {

@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { Menu, Sparkles, X } from "lucide-react";
+import { Menu, ShoppingBag, Sparkles, X } from "lucide-react";
 import { useState } from "react";
 import { signOut } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { useAuth } from "@/components/auth-provider";
+import { useBag } from "@/components/bag-provider";
 import { LinkButton } from "@/components/ui";
 
 const links = [
@@ -20,6 +21,7 @@ const links = [
 export function Header() {
   const [open, setOpen] = useState(false);
   const { user, profile } = useAuth();
+  const { items } = useBag();
 
   return (
     <header className="sticky top-0 z-40 border-b border-white/50 bg-pearl/75 backdrop-blur-xl">
@@ -38,6 +40,7 @@ export function Header() {
           ))}
           {profile?.role === "admin" ? <Link href="/admin">Admin</Link> : null}
           {user ? <Link href="/dashboard">Dashboard</Link> : null}
+          {user ? <Link href="/bag" className="inline-flex items-center gap-1"><ShoppingBag className="h-4 w-4" /> Bag ({items.length})</Link> : null}
         </nav>
         <div className="hidden items-center gap-3 lg:flex">
           {user ? (
@@ -63,6 +66,7 @@ export function Header() {
             </Link>
           ))}
           {user ? <Link href="/dashboard">Dashboard</Link> : <Link href="/login">Login</Link>}
+          {user ? <Link href="/bag">Bag ({items.length})</Link> : null}
           {profile?.role === "admin" ? <Link href="/admin">Admin</Link> : null}
         </div>
       ) : null}

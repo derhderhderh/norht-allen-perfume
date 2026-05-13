@@ -1,17 +1,27 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile } from "firebase/auth";
 import { useRouter } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { auth } from "@/lib/firebase";
 import { ensureUserProfile } from "@/lib/firestore";
 import { Button, Field, Input, Section } from "@/components/ui";
 
 export default function LoginPage() {
+  return (
+    <Suspense fallback={<Section className="grid min-h-[70vh] place-items-center"><div className="glass h-96 w-full max-w-md animate-pulse rounded-[2rem]" /></Section>}>
+      <LoginClient />
+    </Suspense>
+  );
+}
+
+function LoginClient() {
   const [mode, setMode] = useState<"login" | "register">("login");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+  const search = useSearchParams();
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -29,7 +39,7 @@ export default function LoginPage() {
       } else {
         await signInWithEmailAndPassword(auth, email, password);
       }
-      router.push("/dashboard");
+      router.push(search.get("next") || "/dashboard");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to continue.");
     } finally {

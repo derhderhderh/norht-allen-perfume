@@ -1,6 +1,16 @@
+"use client";
+
+import { useEffect } from "react";
+import { useBag } from "@/components/bag-provider";
 import { LinkButton, Section } from "@/components/ui";
 
 export default function CheckoutSuccessPage() {
+  const { clearBag } = useBag();
+
+  useEffect(() => {
+    clearBag();
+  }, [clearBag]);
+
   return (
     <Section className="grid min-h-[70vh] place-items-center text-center">
       <div className="glass max-w-2xl rounded-[2rem] p-9">

@@ -41,33 +41,54 @@ const auth = getAuth();
 
 const options = {
   bottleSizes: [
-    { id: "travel", name: "Travel Atomizer", ml: 10, price: 38, active: true },
-    { id: "signature", name: "Signature Bottle", ml: 50, price: 118, active: true },
-    { id: "collector", name: "Collector Bottle", ml: 100, price: 188, active: true }
+    { id: "travel", name: "Travel Atomizer", ml: 10, price: 28, active: true },
+    { id: "signature", name: "Signature Bottle", ml: 50, price: 88, active: true },
+    { id: "collector", name: "Collector Bottle", ml: 100, price: 148, active: true }
   ],
   scentStrengths: [
     { id: "eau-de-toilette", name: "Eau de Toilette", description: "Airy, polished, and close to the skin.", priceModifier: 0, active: true },
-    { id: "eau-de-parfum", name: "Eau de Parfum", description: "Balanced projection with a longer trail.", priceModifier: 18, active: true },
-    { id: "extrait", name: "Extrait", description: "Rich concentration for the most lasting impression.", priceModifier: 36, active: true }
+    { id: "eau-de-parfum", name: "Eau de Parfum", description: "Balanced projection with a longer trail.", priceModifier: 12, active: true },
+    { id: "extrait", name: "Extrait", description: "Rich concentration for the most lasting impression.", priceModifier: 24, active: true }
   ],
   pricingRules: {
     includedNotes: 6,
-    extraNotePrice: 8
+    extraNotePrice: 5,
+    maxNotes: 12
   }
 };
 
 const notes = [
   ["bergamot", "Bergamot", "top", "Bright citrus with a refined tea-like sparkle."],
+  ["grapefruit", "Grapefruit", "top", "Bitter citrus snap with a clean sparkling edge."],
+  ["blood-orange", "Blood Orange", "top", "Juicy citrus with a warm ruby brightness."],
+  ["lemon-zest", "Lemon Zest", "top", "Crisp, sunny citrus with a lively first impression."],
   ["pink-pepper", "Pink Pepper", "top", "Rosy spice that gives the opening a modern lift."],
+  ["black-pepper", "Black Pepper", "top", "Dry spice with a tailored, energetic bite."],
   ["mandarin", "Mandarin", "top", "Juicy citrus with soft sweetness and shine."],
   ["neroli", "Neroli", "top", "Clean orange blossom with a crisp green edge."],
+  ["pear", "Pear", "top", "Fresh orchard sweetness with a watery sheen."],
+  ["green-tea", "Green Tea", "top", "Soft tea leaf freshness with a calming clarity."],
+  ["mint-leaf", "Mint Leaf", "top", "Cool herbal lift with a crisp finish."],
   ["lavender", "Lavender", "middle", "Aromatic, polished, and quietly herbal."],
   ["jasmine", "Jasmine", "middle", "Creamy white floral depth with a luminous heart."],
+  ["tuberose", "Tuberose", "middle", "Velvety white floral richness with a confident bloom."],
+  ["orange-blossom", "Orange Blossom", "middle", "Soft floral brightness with a honeyed glow."],
   ["orris", "Orris", "middle", "Powdered elegance with a soft cosmetic finish."],
   ["rose", "Rose", "middle", "Velvety floral texture with a romantic body."],
+  ["violet", "Violet", "middle", "Delicate floral powder with a cool petal texture."],
+  ["sage", "Clary Sage", "middle", "Herbal warmth with a smooth aromatic character."],
+  ["cardamom", "Cardamom", "middle", "Green spice with a creamy, quietly luxurious feel."],
+  ["fig-leaf", "Fig Leaf", "middle", "Green, milky leafiness with a modern boutique feel."],
+  ["cashmere", "Cashmere Accord", "middle", "Soft musky warmth with a brushed-fabric texture."],
   ["cedar", "Cedar", "base", "Dry woods with clean structure and warmth."],
+  ["vetiver", "Vetiver", "base", "Earthy grass and dry woods with elegant restraint."],
+  ["patchouli", "Patchouli", "base", "Deep, earthy warmth with a smooth polished edge."],
   ["amber", "Amber", "base", "Golden resin warmth with a smooth lasting trail."],
   ["vanilla", "Vanilla", "base", "Soft sweetness with a creamy, comforting drydown."],
+  ["tonka", "Tonka Bean", "base", "Warm almond sweetness with a rounded finish."],
+  ["musk", "Clean Musk", "base", "Soft skin-like comfort with a sheer lasting trail."],
+  ["oud", "Oud", "base", "Dark resinous wood with a dramatic, smoky depth."],
+  ["leather", "Leather", "base", "Supple warmth with a refined, tailored finish."],
   ["sandalwood", "Sandalwood", "base", "Milky woods with a calm, polished finish."]
 ];
 

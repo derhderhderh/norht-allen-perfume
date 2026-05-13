@@ -39,6 +39,7 @@ export type ScentStrength = {
 export type PricingRules = {
   extraNotePrice: number;
   includedNotes: number;
+  maxNotes: number;
 };
 
 export type ProductOptions = {

@@ -13,3 +13,7 @@ export const checkoutRequestSchema = z.object({
   scentStrengthId: z.string().min(1),
   specialInstructions: z.string().trim().max(1200).optional().default("")
 });
+
+export const checkoutBagRequestSchema = z.object({
+  items: z.array(checkoutRequestSchema).min(1).max(10)
+});

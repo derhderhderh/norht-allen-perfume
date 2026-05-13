@@ -4,6 +4,7 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AlertCircle, Check, FlaskConical, RefreshCw } from "lucide-react";
 import { useAuth } from "@/components/auth-provider";
+import { useBag } from "@/components/bag-provider";
 import { Button, EmptyState, Field, Input, Section, Select, Textarea } from "@/components/ui";
 import { getActiveNotes, getProductOptions } from "@/lib/firestore";
 import { calculatePrice, selectedNoteCount } from "@/lib/pricing";
@@ -22,6 +23,7 @@ export default function BuilderPage() {
 
 function BuilderClient() {
   const { user, loading: authLoading } = useAuth();
+  const { addItem } = useBag();
   const router = useRouter();
   const search = useSearchParams();
   const [notes, setNotes] = useState<FragranceNote[]>([]);
@@ -90,41 +92,37 @@ function BuilderClient() {
     });
   }
 
-  async function checkout() {
+  async function addToBag() {
     if (authLoading) return;
     if (!user) {
-      router.push("/login");
+      router.push("/login?next=/builder");
       return;
     }
     if (!perfumeName.trim() || !bottleSize || !scentStrength || selectedNoteCount(selectedNotes) === 0) {
       setError("Name your scent and choose at least one note.");
       return;
     }
-    setSubmitting(true);
     setError("");
-    const idToken = await user.getIdToken();
-    const res = await fetch("/api/checkout", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
-      body: JSON.stringify({
-        perfumeName: perfumeName.trim(),
-        selectedNoteIds: {
-          top: selectedNotes.top.map((note) => note.id),
-          middle: selectedNotes.middle.map((note) => note.id),
-          base: selectedNotes.base.map((note) => note.id)
-        },
-        bottleSizeId: bottleSize.id,
-        scentStrengthId: scentStrength.id,
-        specialInstructions
-      })
+    addItem({
+      perfumeName: perfumeName.trim(),
+      selectedNoteIds: {
+        top: selectedNotes.top.map((note) => note.id),
+        middle: selectedNotes.middle.map((note) => note.id),
+        base: selectedNotes.base.map((note) => note.id)
+      },
+      noteNames: {
+        top: selectedNotes.top.map((note) => note.name),
+        middle: selectedNotes.middle.map((note) => note.name),
+        base: selectedNotes.base.map((note) => note.name)
+      },
+      bottleSizeId: bottleSize.id,
+      bottleSizeName: bottleSize.name,
+      scentStrengthId: scentStrength.id,
+      scentStrengthName: scentStrength.name,
+      specialInstructions,
+      estimatedPrice: price
     });
-    const data = await res.json();
-    setSubmitting(false);
-    if (!res.ok) {
-      setError(data.error || "Unable to start checkout.");
-      return;
-    }
-    router.push(`/checkout/${data.orderId}`);
+    router.push("/bag");
   }
 
   if (loading) return <Section><div className="glass h-96 animate-pulse rounded-[2rem]" /></Section>;
@@ -205,7 +203,7 @@ function BuilderClient() {
               <p className="font-serif text-4xl font-semibold">{formatMoney(price)}</p>
               <p className="mt-1 text-xs text-ink/55">{selectedNoteCount(selectedNotes)} notes selected</p>
             </div>
-            <Button onClick={checkout} loading={submitting} disabled={!bottleSize || !scentStrength || notes.length === 0}>Add to checkout</Button>
+            <Button onClick={addToBag} loading={submitting} disabled={!bottleSize || !scentStrength || notes.length === 0}>Add to bag</Button>
             {error ? <p className="text-sm text-rosewood">{error}</p> : null}
           </div>
         </aside>

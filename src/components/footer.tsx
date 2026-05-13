@@ -12,6 +12,7 @@ export function Footer() {
         </div>
         <div className="grid gap-2 text-sm text-pearl/75">
           <Link href="/builder">Custom builder</Link>
+          <Link href="/bag">Shopping bag</Link>
           <Link href="/shop">Shop</Link>
           <Link href="/dashboard">My orders</Link>
         </div>

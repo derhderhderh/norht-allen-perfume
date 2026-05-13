@@ -19,8 +19,8 @@ export async function POST(request: NextRequest) {
 
   if (event.type === "checkout.session.completed") {
     const session = event.data.object as Stripe.Checkout.Session;
-    const orderId = session.metadata?.orderId;
-    if (orderId) {
+    const orderIds = session.metadata?.orderIds?.split(",").filter(Boolean) || (session.metadata?.orderId ? [session.metadata.orderId] : []);
+    for (const orderId of orderIds) {
       const ref = getAdminDb().collection("orders").doc(orderId);
       await ref.update({
         paymentStatus: "paid",
