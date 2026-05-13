@@ -93,6 +93,16 @@ const notes = [
 ];
 
 await db.collection("products").doc("options").set(options, { merge: true });
+await db.collection("promoCodes").doc("northallen100").set(
+  {
+    code: "NORTHALLEN100",
+    description: "100% off order",
+    active: true,
+    percentOff: 100,
+    createdAt: FieldValue.serverTimestamp()
+  },
+  { merge: true }
+);
 
 await Promise.all(
   notes.map(([id, name, category, description]) =>
@@ -123,9 +133,9 @@ if (adminEmail) {
       },
       { merge: true }
     );
-    console.log(`Seeded catalog and marked ${adminEmail} as admin.`);
+    console.log(`Seeded catalog, promo codes, and marked ${adminEmail} as admin.`);
   } catch {
-    console.log(`Seeded catalog. Create ${adminEmail} in Firebase Auth, then run this again to mark it admin.`);
+    console.log(`Seeded catalog and promo codes. Create ${adminEmail} in Firebase Auth, then run this again to mark it admin.`);
   }
 } else {
   console.log("Seeded catalog. Set ADMIN_EMAIL to mark an admin user.");

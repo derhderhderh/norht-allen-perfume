@@ -12,6 +12,7 @@ export default function BagPage() {
   const { user, loading } = useAuth();
   const { items, removeItem, clearBag } = useBag();
   const [error, setError] = useState("");
+  const [promoCode, setPromoCode] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const router = useRouter();
   const total = items.reduce((sum, item) => sum + item.estimatedPrice, 0);
@@ -35,12 +36,18 @@ export default function BagPage() {
             bottleSizeId: item.bottleSizeId,
             scentStrengthId: item.scentStrengthId,
             specialInstructions: item.specialInstructions
-          }))
+          })),
+          promoCode
         })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Unable to start checkout.");
-      router.push(`/checkout/${data.orderId}`);
+      if (data.successUrl) {
+        clearBag();
+        router.push(data.successUrl);
+      } else {
+        router.push(`/checkout/${data.orderId}`);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to start checkout.");
     } finally {
@@ -84,6 +91,11 @@ export default function BagPage() {
           <h2 className="font-serif text-3xl font-semibold">Summary</h2>
           <div className="mt-5 grid gap-3 text-sm">
             <p>{items.length} custom scent{items.length === 1 ? "" : "s"}</p>
+            <label className="grid gap-2 text-sm font-medium text-ink/75">
+              Promo code
+              <input className="focus-ring w-full rounded-2xl border border-ink/10 bg-white/70 px-4 py-3 text-sm uppercase shadow-sm" value={promoCode} onChange={(event) => setPromoCode(event.target.value.toUpperCase())} placeholder="Enter code" />
+            </label>
+            {promoCode ? <p className="text-xs text-ink/55">100% off codes are checked when you checkout.</p> : null}
             <p className="border-t border-ink/10 pt-4 font-serif text-4xl font-semibold">{formatMoney(total)}</p>
             <Button onClick={checkout} loading={submitting} disabled={items.length === 0}>Checkout</Button>
             {error ? <p className="text-sm text-rosewood">{error}</p> : null}

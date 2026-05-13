@@ -42,6 +42,15 @@ export type PricingRules = {
   maxNotes: number;
 };
 
+export type PromoCode = {
+  id: string;
+  code: string;
+  description: string;
+  active: boolean;
+  percentOff: 100;
+  createdAt?: Timestamp;
+};
+
 export type ProductOptions = {
   bottleSizes: BottleSize[];
   scentStrengths: ScentStrength[];
@@ -70,6 +79,9 @@ export type PerfumeOrder = {
   bottleSize: BottleSize;
   scentStrength: ScentStrength;
   specialInstructions: string;
+  subtotal?: number;
+  discountAmount?: number;
+  promoCode?: string;
   price: number;
   stripeSessionId?: string;
   paymentStatus: "unpaid" | "paid" | "refunded";

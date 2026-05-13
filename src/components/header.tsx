@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { Menu, ShoppingBag, Sparkles, X } from "lucide-react";
+import Image from "next/image";
+import { Menu, ShoppingBag, X } from "lucide-react";
 import { useState } from "react";
 import { signOut } from "firebase/auth";
 import { auth } from "@/lib/firebase";
@@ -27,9 +28,7 @@ export function Header() {
     <header className="sticky top-0 z-40 border-b border-white/50 bg-pearl/75 backdrop-blur-xl">
       <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-4 sm:px-8">
         <Link href="/" className="flex items-center gap-3">
-          <span className="grid h-10 w-10 place-items-center rounded-full bg-ink text-champagne">
-            <Sparkles className="h-5 w-5" />
-          </span>
+          <Image src="/north-allen-logo.png" alt="North Allen Perfumery" width={44} height={44} className="h-11 w-11 rounded-full object-cover" priority />
           <span className="font-serif text-xl font-bold tracking-wide">North Allen Perfumery</span>
         </Link>
         <nav className="hidden items-center gap-6 text-sm font-medium text-ink/70 lg:flex">

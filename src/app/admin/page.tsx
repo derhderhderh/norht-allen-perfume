@@ -7,29 +7,33 @@ import { useAuth } from "@/components/auth-provider";
 import { Button, EmptyState, Field, Input, Section, Select, Textarea } from "@/components/ui";
 import { db } from "@/lib/firebase";
 import { deleteDoc, doc } from "firebase/firestore";
-import { getAllNotes, getAllOrders, getProductOptions, saveNote, saveProductOptions } from "@/lib/firestore";
+import { getAllNotes, getAllOrders, getProductOptions, getPromoCodes, saveNote, saveProductOptions, savePromoCode } from "@/lib/firestore";
 import { defaultOptions } from "@/lib/default-options";
 import { formatMoney } from "@/lib/utils";
-import { orderStatuses, type BottleSize, type FragranceNote, type OrderStatus, type PerfumeOrder, type ProductOptions, type ScentStrength } from "@/lib/types";
+import { orderStatuses, type BottleSize, type FragranceNote, type OrderStatus, type PerfumeOrder, type ProductOptions, type PromoCode, type ScentStrength } from "@/lib/types";
 
 const blankNote = { name: "", category: "top" as const, description: "", imageUrl: "", active: true };
+const blankPromo = { code: "", description: "100% off order", active: true };
 
 export default function AdminPage() {
   const { user, profile, loading } = useAuth();
   const router = useRouter();
   const [notes, setNotes] = useState<FragranceNote[]>([]);
   const [orders, setOrders] = useState<PerfumeOrder[]>([]);
+  const [promos, setPromos] = useState<PromoCode[]>([]);
   const [options, setOptions] = useState<ProductOptions>(defaultOptions);
   const [noteForm, setNoteForm] = useState<Partial<FragranceNote> & { name: string; category: "top" | "middle" | "base" }>(blankNote);
+  const [promoForm, setPromoForm] = useState<Partial<PromoCode> & { code: string }>(blankPromo);
   const [query, setQuery] = useState("");
-  const [tab, setTab] = useState<"orders" | "notes" | "pricing">("orders");
+  const [tab, setTab] = useState<"orders" | "notes" | "pricing" | "promos">("orders");
   const [saving, setSaving] = useState(false);
 
   async function loadData() {
-    const [allNotes, allOrders, productOptions] = await Promise.all([getAllNotes(), getAllOrders(), getProductOptions()]);
+    const [allNotes, allOrders, productOptions, allPromos] = await Promise.all([getAllNotes(), getAllOrders(), getProductOptions(), getPromoCodes()]);
     setNotes(allNotes);
     setOrders(allOrders);
     setOptions(productOptions);
+    setPromos(allPromos);
   }
 
   useEffect(() => {
@@ -56,6 +60,20 @@ export default function AdminPage() {
 
   async function removeNote(id: string) {
     await deleteDoc(doc(db, "notes", id));
+    await loadData();
+  }
+
+  async function submitPromo(event: React.FormEvent) {
+    event.preventDefault();
+    setSaving(true);
+    await savePromoCode(promoForm);
+    setPromoForm(blankPromo);
+    await loadData();
+    setSaving(false);
+  }
+
+  async function removePromo(id: string) {
+    await deleteDoc(doc(db, "promoCodes", id));
     await loadData();
   }
 
@@ -86,7 +104,7 @@ export default function AdminPage() {
           <h1 className="mt-3 font-serif text-5xl font-semibold">Studio command center</h1>
         </div>
         <div className="flex rounded-full border border-ink/10 bg-white/60 p-1">
-          {(["orders", "notes", "pricing"] as const).map((item) => (
+          {(["orders", "notes", "pricing", "promos"] as const).map((item) => (
             <button key={item} onClick={() => setTab(item)} className={`rounded-full px-4 py-2 text-sm font-semibold capitalize ${tab === item ? "bg-ink text-pearl" : "text-ink/65"}`}>{item}</button>
           ))}
         </div>
@@ -142,6 +160,31 @@ export default function AdminPage() {
         </div>
       ) : null}
       {tab === "pricing" ? <PricingEditor options={options} setOptions={setOptions} save={saveOptions} saving={saving} /> : null}
+      {tab === "promos" ? (
+        <div className="mt-8 grid gap-6 lg:grid-cols-[380px_1fr]">
+          <form onSubmit={submitPromo} className="glass grid h-fit gap-4 rounded-[1.5rem] p-6">
+            <h2 className="font-serif text-3xl font-semibold">{promoForm.id ? "Edit promo" : "Add promo"}</h2>
+            <Field label="Code"><Input value={promoForm.code} onChange={(e) => setPromoForm({ ...promoForm, code: e.target.value.toUpperCase() })} required /></Field>
+            <Field label="Description"><Input value={promoForm.description || ""} onChange={(e) => setPromoForm({ ...promoForm, description: e.target.value })} /></Field>
+            <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={promoForm.active ?? true} onChange={(e) => setPromoForm({ ...promoForm, active: e.target.checked })} /> Active</label>
+            <p className="text-xs leading-5 text-ink/55">Promo codes currently apply 100% off the bag total.</p>
+            <Button loading={saving}><Plus className="h-4 w-4" /> Save promo</Button>
+          </form>
+          <div className="grid gap-3">
+            {promos.length === 0 ? <EmptyState title="No promo codes yet" body="Create a code here or use the PROMO_CODES environment variable for private 100% off codes." /> : null}
+            {promos.map((promo) => (
+              <div className="glass flex flex-wrap items-center justify-between gap-3 rounded-[1.25rem] p-4" key={promo.id}>
+                <button className="text-left" onClick={() => setPromoForm(promo)}>
+                  <strong>{promo.code}</strong>
+                  <span className="ml-3 rounded-full bg-ink/5 px-2 py-1 text-xs">{promo.active ? "Active" : "Inactive"}</span>
+                  <p className="mt-1 text-sm text-ink/60">{promo.description || "100% off order"}</p>
+                </button>
+                <Button variant="ghost" onClick={() => removePromo(promo.id)}><Trash2 className="h-4 w-4" /></Button>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
     </Section>
   );
 }

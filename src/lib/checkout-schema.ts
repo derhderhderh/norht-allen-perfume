@@ -15,5 +15,6 @@ export const checkoutRequestSchema = z.object({
 });
 
 export const checkoutBagRequestSchema = z.object({
-  items: z.array(checkoutRequestSchema).min(1).max(10)
+  items: z.array(checkoutRequestSchema).min(1).max(10),
+  promoCode: z.string().trim().max(40).optional().default("")
 });

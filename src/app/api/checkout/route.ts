@@ -6,7 +6,8 @@ import { absoluteUrl } from "@/lib/utils";
 import { defaultOptions } from "@/lib/default-options";
 import { checkoutBagRequestSchema } from "@/lib/checkout-schema";
 import { calculatePrice, selectedNoteCount } from "@/lib/pricing";
-import type { FragranceNote, ProductOptions, SelectedNotes } from "@/lib/types";
+import type { FragranceNote, PerfumeOrder, ProductOptions, SelectedNotes } from "@/lib/types";
+import { sendAdminNewOrder, sendCustomerConfirmation } from "@/lib/email";
 
 async function getOptions() {
   const snap = await getAdminDb().collection("products").doc("options").get();
@@ -36,6 +37,26 @@ async function getSelectedNotes(selectedNoteIds: { top: string[]; middle: string
   return selectedNotes;
 }
 
+function normalizePromo(code: string) {
+  return code.trim().toUpperCase();
+}
+
+async function isFreePromo(code: string) {
+  const normalized = normalizePromo(code);
+  if (!normalized) return false;
+
+  const envCodes = (process.env.PROMO_CODES || process.env.PROMO_CODE || "")
+    .split(",")
+    .map((item) => normalizePromo(item))
+    .filter(Boolean);
+
+  if (envCodes.includes(normalized)) return true;
+
+  const snap = await getAdminDb().collection("promoCodes").doc(normalized.toLowerCase()).get();
+  const promo = snap.data();
+  return snap.exists && promo?.active === true && promo?.percentOff === 100;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const token = request.headers.get("authorization")?.replace("Bearer ", "") || null;
@@ -49,6 +70,12 @@ export async function POST(request: NextRequest) {
     const customerName = userSnap.data()?.name || decoded.name || decoded.email?.split("@")[0] || "Customer";
     const customerEmail = decoded.email;
     if (!customerEmail) throw new Error("Your account needs an email address before checkout.");
+    const promoCode = normalizePromo(body.promoCode);
+    const freePromo = promoCode ? await isFreePromo(promoCode) : false;
+
+    if (promoCode && !freePromo) {
+      throw new Error("That promo code is not active.");
+    }
 
     const prepared = await Promise.all(body.items.map(async (item) => {
       const selectedNotes = await getSelectedNotes(item.selectedNoteIds);
@@ -60,7 +87,7 @@ export async function POST(request: NextRequest) {
       if (selectedNoteCount(selectedNotes) > maxNotes) throw new Error(`Choose up to ${maxNotes} notes for one custom scent.`);
 
       const price = calculatePrice(bottleSize, scentStrength, selectedNotes, productOptions.pricingRules);
-      return { item, selectedNotes, bottleSize, scentStrength, price };
+      return { item, selectedNotes, bottleSize, scentStrength, subtotal: price, price: freePromo ? 0 : price };
     }));
 
     const orderRefs = await Promise.all(prepared.map((entry) => db.collection("orders").add({
@@ -72,11 +99,23 @@ export async function POST(request: NextRequest) {
       bottleSize: entry.bottleSize,
       scentStrength: entry.scentStrength,
       specialInstructions: entry.item.specialInstructions,
+      subtotal: entry.subtotal,
+      discountAmount: entry.subtotal - entry.price,
+      promoCode: freePromo ? promoCode : "",
       price: entry.price,
-      paymentStatus: "unpaid",
-      orderStatus: "pending_payment",
+      paymentStatus: freePromo ? "paid" : "unpaid",
+      orderStatus: freePromo ? "paid" : "pending_payment",
       createdAt: FieldValue.serverTimestamp()
     })));
+
+    if (freePromo) {
+      await Promise.all(orderRefs.map(async (ref) => {
+        const snap = await ref.get();
+        const order = { id: snap.id, ...snap.data() } as PerfumeOrder;
+        await Promise.all([sendCustomerConfirmation(order), sendAdminNewOrder(order)]);
+      }));
+      return NextResponse.json({ orderId: orderRefs[0].id, successUrl: "/checkout/success?promo=1" });
+    }
 
     const session = await getStripe().checkout.sessions.create({
       ui_mode: "embedded",

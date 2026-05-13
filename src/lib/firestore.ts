@@ -13,7 +13,7 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { defaultOptions } from "@/lib/default-options";
-import type { FragranceNote, PerfumeOrder, ProductOptions } from "@/lib/types";
+import type { FragranceNote, PerfumeOrder, ProductOptions, PromoCode } from "@/lib/types";
 
 export async function ensureUserProfile(uid: string, data: { name: string; email: string }) {
   const ref = doc(db, "users", uid);
@@ -76,6 +76,26 @@ export async function getProductOptions() {
 
 export async function saveProductOptions(options: ProductOptions) {
   await setDoc(doc(db, "products", "options"), options, { merge: true });
+}
+
+export async function getPromoCodes() {
+  const snap = await getDocs(collection(db, "promoCodes"));
+  return snap.docs
+    .map((d) => ({ id: d.id, ...d.data() }) as PromoCode)
+    .sort((a, b) => a.code.localeCompare(b.code));
+}
+
+export async function savePromoCode(promo: Partial<PromoCode> & Pick<PromoCode, "code">) {
+  const normalized = promo.code.trim().toUpperCase();
+  const id = promo.id || normalized.toLowerCase();
+  await setDoc(doc(db, "promoCodes", id), {
+    code: normalized,
+    description: promo.description || "100% off order",
+    active: promo.active ?? true,
+    percentOff: 100,
+    createdAt: promo.createdAt || serverTimestamp()
+  }, { merge: true });
+  return id;
 }
 
 export async function getCustomerOrders(uid: string) {
