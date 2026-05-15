@@ -20,7 +20,7 @@ export default function ContactPage() {
     });
     const data = await res.json();
     setState(res.ok ? "sent" : "error");
-    setMessage(res.ok ? "Message sent. We will reply soon." : data.error || "Something went wrong. Please try again.");
+    setMessage(res.ok ? `Inquiry created. Check your email for code ${data.code} and send follow-ups to contact@northallenperfumery.org.` : data.error || "Something went wrong. Please try again.");
     if (res.ok) event.currentTarget.reset();
   }
 
@@ -36,6 +36,7 @@ export default function ContactPage() {
         <form onSubmit={submit} className="glass grid gap-4 rounded-[1.5rem] p-6">
           <Field label="Name"><Input name="name" required /></Field>
           <Field label="Email"><Input name="email" type="email" required /></Field>
+          <Field label="Subject"><Input name="subject" required /></Field>
           <Field label="Message"><Textarea name="message" required /></Field>
           <Button loading={state === "loading"}>Send message</Button>
           {state === "sent" ? <p className="text-sm text-moss">{message}</p> : null}

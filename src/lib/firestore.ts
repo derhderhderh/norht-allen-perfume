@@ -13,7 +13,7 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { defaultOptions } from "@/lib/default-options";
-import type { EmailEvent, FragranceNote, PerfumeOrder, ProductOptions, PromoCode } from "@/lib/types";
+import type { ContactQuery, EmailEvent, FragranceNote, PerfumeOrder, ProductOptions, PromoCode } from "@/lib/types";
 
 export async function ensureUserProfile(uid: string, data: { name: string; email: string }) {
   const ref = doc(db, "users", uid);
@@ -116,5 +116,12 @@ export async function getEmailEvents() {
   const snap = await getDocs(query(collection(db, "emailEvents"), limit(100)));
   return snap.docs
     .map((d) => ({ id: d.id, ...d.data() }) as EmailEvent)
+    .sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
+}
+
+export async function getContactQueries() {
+  const snap = await getDocs(query(collection(db, "contactQueries"), limit(100)));
+  return snap.docs
+    .map((d) => ({ id: d.id, ...d.data() }) as ContactQuery)
     .sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
 }

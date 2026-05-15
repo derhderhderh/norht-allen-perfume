@@ -1,7 +1,7 @@
 import { Resend } from "resend";
 import { FieldValue } from "firebase-admin/firestore";
 import { getAdminDb } from "@/lib/firebase-admin";
-import type { OrderStatus, PerfumeOrder } from "@/lib/types";
+import type { ContactQuery, OrderStatus, PerfumeOrder } from "@/lib/types";
 import { formatMoney } from "@/lib/utils";
 
 const from = "North Allen Perfumery <orders@northallenperfumery.org>";
@@ -133,7 +133,8 @@ function totalsCard(order: PerfumeOrder) {
 
 async function logEmailEvent(data: {
   orderId?: string;
-  type: "customer_confirmation" | "admin_new_order" | "status_update";
+  queryId?: string;
+  type: "customer_confirmation" | "admin_new_order" | "status_update" | "contact_customer" | "contact_admin" | "contact_reply";
   to: string[];
   subject: string;
   status: "sent" | "skipped" | "failed";
@@ -152,7 +153,8 @@ async function logEmailEvent(data: {
 
 async function sendTrackedEmail(data: {
   orderId?: string;
-  type: "customer_confirmation" | "admin_new_order" | "status_update";
+  queryId?: string;
+  type: "customer_confirmation" | "admin_new_order" | "status_update" | "contact_customer" | "contact_admin" | "contact_reply";
   to: string[];
   subject: string;
   html: string;
@@ -245,6 +247,70 @@ export async function sendStatusUpdate(order: PerfumeOrder, status: OrderStatus)
       `
         ${orderDetailsCard(order)}
         <div style="margin-top:18px;padding:16px;border-radius:16px;background:#f4eadc;color:#4b4238;font-size:14px;line-height:22px;">Thank you for letting us craft this bottle for you.</div>
+      `
+    )
+  });
+}
+
+export async function sendContactQueryCustomer(query: ContactQuery) {
+  await sendTrackedEmail({
+    queryId: query.id,
+    type: "contact_customer",
+    to: [query.email],
+    subject: `North Allen Perfumery inquiry ${query.code}`,
+    html: emailShell(
+      `Your inquiry code is ${query.code}.`,
+      "We received your note",
+      `Hi ${escapeHtml(query.name)}, your inquiry has been created. To continue the conversation from your own email, send a message to <strong>contact@northallenperfumery.org</strong> and include this code in the subject: <strong>${escapeHtml(query.code)}</strong>.`,
+      `
+        <div style="margin-top:20px;padding:18px;border-radius:18px;background:#fbf7ef;border:1px solid #eadfce;">
+          <p style="margin:0;color:#9a7b36;font-size:12px;font-weight:700;letter-spacing:2px;text-transform:uppercase;">Inquiry code</p>
+          <p style="margin:8px 0 0;font-family:Georgia,serif;font-size:30px;color:#1f1a14;">${escapeHtml(query.code)}</p>
+          <p style="margin:14px 0 0;color:#63594c;font-size:14px;line-height:22px;">${escapeHtml(query.message)}</p>
+        </div>
+        <p style="margin:20px 0 0;color:#63594c;font-size:15px;line-height:24px;">Email <strong>contact@northallenperfumery.org</strong> with this code so the studio can match your message to the inquiry in the dashboard.</p>
+      `
+    )
+  });
+}
+
+export async function sendContactQueryAdmin(query: ContactQuery) {
+  await sendTrackedEmail({
+    queryId: query.id,
+    type: "contact_admin",
+    to: adminRecipients(),
+    subject: `New inquiry ${query.code}: ${query.subject}`,
+    html: emailShell(
+      `${query.name} created an inquiry.`,
+      "New customer inquiry",
+      `<strong>${escapeHtml(query.name)}</strong> opened a contact query from the website.`,
+      `
+        <div style="margin-top:20px;padding:18px;border-radius:18px;background:#1f1a14;color:#fffdf8;">
+          <p style="margin:0;color:#d7b56d;font-size:12px;font-weight:700;letter-spacing:2px;text-transform:uppercase;">Code</p>
+          <p style="margin:8px 0 0;font-family:Georgia,serif;font-size:28px;">${escapeHtml(query.code)}</p>
+          <p style="margin:16px 0 0;color:#fffdf8;font-size:15px;line-height:23px;">${escapeHtml(query.name)}<br />${escapeHtml(query.email)}</p>
+        </div>
+        <div style="margin-top:16px;padding:18px;border-radius:18px;background:#fbf7ef;border:1px solid #eadfce;color:#4b4238;font-size:15px;line-height:24px;">
+          <strong>${escapeHtml(query.subject)}</strong><br />${escapeHtml(query.message)}
+        </div>
+      `
+    )
+  });
+}
+
+export async function sendContactReply(query: ContactQuery, subject: string, message: string) {
+  await sendTrackedEmail({
+    queryId: query.id,
+    type: "contact_reply",
+    to: [query.email],
+    subject,
+    html: emailShell(
+      `Reply for inquiry ${query.code}.`,
+      "A note from the studio",
+      `Hi ${escapeHtml(query.name)}, the studio sent an update for inquiry <strong>${escapeHtml(query.code)}</strong>.`,
+      `
+        <div style="margin-top:20px;padding:18px;border-radius:18px;background:#fbf7ef;border:1px solid #eadfce;color:#4b4238;font-size:15px;line-height:24px;">${escapeHtml(message).replaceAll("\n", "<br />")}</div>
+        <p style="margin:20px 0 0;color:#63594c;font-size:15px;line-height:24px;">To reply from your own email, send a message to <strong>contact@northallenperfumery.org</strong> and include <strong>${escapeHtml(query.code)}</strong> in the subject.</p>
       `
     )
   });

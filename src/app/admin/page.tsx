@@ -7,10 +7,10 @@ import { useAuth } from "@/components/auth-provider";
 import { Button, EmptyState, Field, Input, Section, Select, Textarea } from "@/components/ui";
 import { db } from "@/lib/firebase";
 import { deleteDoc, doc } from "firebase/firestore";
-import { getAllNotes, getAllOrders, getEmailEvents, getProductOptions, getPromoCodes, saveNote, saveProductOptions, savePromoCode } from "@/lib/firestore";
+import { getAllNotes, getAllOrders, getContactQueries, getEmailEvents, getProductOptions, getPromoCodes, saveNote, saveProductOptions, savePromoCode } from "@/lib/firestore";
 import { defaultOptions } from "@/lib/default-options";
 import { formatMoney } from "@/lib/utils";
-import { orderStatuses, type BottleSize, type EmailEvent, type FragranceNote, type OrderStatus, type PerfumeOrder, type ProductOptions, type PromoCode, type ScentStrength } from "@/lib/types";
+import { orderStatuses, type BottleSize, type ContactQuery, type EmailEvent, type FragranceNote, type OrderStatus, type PerfumeOrder, type ProductOptions, type PromoCode, type ScentStrength } from "@/lib/types";
 
 const blankNote = { name: "", category: "top" as const, description: "", imageUrl: "", active: true };
 const blankPromo = { code: "", description: "100% off order", active: true };
@@ -22,22 +22,26 @@ export default function AdminPage() {
   const [orders, setOrders] = useState<PerfumeOrder[]>([]);
   const [promos, setPromos] = useState<PromoCode[]>([]);
   const [emailEvents, setEmailEvents] = useState<EmailEvent[]>([]);
+  const [contactQueries, setContactQueries] = useState<ContactQuery[]>([]);
   const [options, setOptions] = useState<ProductOptions>(defaultOptions);
   const [noteForm, setNoteForm] = useState<Partial<FragranceNote> & { name: string; category: "top" | "middle" | "base" }>(blankNote);
   const [promoForm, setPromoForm] = useState<Partial<PromoCode> & { code: string }>(blankPromo);
   const [query, setQuery] = useState("");
-  const [tab, setTab] = useState<"orders" | "notes" | "pricing" | "promos" | "emails">("orders");
+  const [tab, setTab] = useState<"orders" | "notes" | "pricing" | "promos" | "emails" | "queries">("orders");
   const [saving, setSaving] = useState(false);
   const [loadError, setLoadError] = useState("");
+  const [clearText, setClearText] = useState("");
+  const [queryForm, setQueryForm] = useState({ id: "", name: "", email: "", subject: "", message: "", close: false });
 
   async function loadData() {
     setLoadError("");
-    const [notesResult, ordersResult, optionsResult, promosResult, emailsResult] = await Promise.allSettled([
+    const [notesResult, ordersResult, optionsResult, promosResult, emailsResult, queriesResult] = await Promise.allSettled([
       getAllNotes(),
       getAllOrders(),
       getProductOptions(),
       getPromoCodes(),
-      getEmailEvents()
+      getEmailEvents(),
+      getContactQueries()
     ]);
 
     if (notesResult.status === "fulfilled") setNotes(notesResult.value);
@@ -45,13 +49,15 @@ export default function AdminPage() {
     if (optionsResult.status === "fulfilled") setOptions(optionsResult.value);
     if (promosResult.status === "fulfilled") setPromos(promosResult.value);
     if (emailsResult.status === "fulfilled") setEmailEvents(emailsResult.value);
+    if (queriesResult.status === "fulfilled") setContactQueries(queriesResult.value);
 
     const failed = [
       notesResult.status === "rejected" ? "notes" : "",
       ordersResult.status === "rejected" ? "orders" : "",
       optionsResult.status === "rejected" ? "pricing" : "",
       promosResult.status === "rejected" ? "promo codes" : "",
-      emailsResult.status === "rejected" ? "email logs" : ""
+      emailsResult.status === "rejected" ? "email logs" : "",
+      queriesResult.status === "rejected" ? "queries" : ""
     ].filter(Boolean);
 
     if (failed.length > 0) {
@@ -111,6 +117,45 @@ export default function AdminPage() {
     await loadData();
   }
 
+  async function clearOrders() {
+    if (!user || clearText !== "DELETE ORDERS") return;
+    const confirmed = window.confirm("This permanently removes every order from Firestore. Notes, pricing, promos, users, and queries will not be touched.");
+    if (!confirmed) return;
+    setSaving(true);
+    const idToken = await user.getIdToken();
+    const res = await fetch("/api/admin/orders", {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${idToken}` }
+    });
+    if (!res.ok) {
+      const data = await res.json();
+      setLoadError(data.error || "Unable to clear orders.");
+    }
+    setClearText("");
+    await loadData();
+    setSaving(false);
+  }
+
+  async function sendQueryEmail(event: React.FormEvent) {
+    event.preventDefault();
+    if (!user) return;
+    setSaving(true);
+    const idToken = await user.getIdToken();
+    const res = await fetch("/api/admin/contact-queries", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
+      body: JSON.stringify(queryForm)
+    });
+    if (!res.ok) {
+      const data = await res.json();
+      setLoadError(data.error || "Unable to send query email.");
+    } else {
+      setQueryForm({ id: "", name: "", email: "", subject: "", message: "", close: false });
+    }
+    await loadData();
+    setSaving(false);
+  }
+
   async function saveOptions() {
     setSaving(true);
     await saveProductOptions(options);
@@ -127,7 +172,7 @@ export default function AdminPage() {
           <h1 className="mt-3 font-serif text-5xl font-semibold">Studio command center</h1>
         </div>
         <div className="flex rounded-full border border-ink/10 bg-white/60 p-1">
-          {(["orders", "notes", "pricing", "promos", "emails"] as const).map((item) => (
+          {(["orders", "notes", "pricing", "promos", "queries", "emails"] as const).map((item) => (
             <button key={item} onClick={() => setTab(item)} className={`rounded-full px-4 py-2 text-sm font-semibold capitalize ${tab === item ? "bg-ink text-pearl" : "text-ink/65"}`}>{item}</button>
           ))}
         </div>
@@ -142,6 +187,14 @@ export default function AdminPage() {
         <div className="mt-8 grid gap-4">
           <div className="relative"><Search className="absolute left-4 top-3.5 h-4 w-4 text-ink/45" /><Input className="pl-11" placeholder="Search orders, customers, statuses" value={query} onChange={(e) => setQuery(e.target.value)} /></div>
           {filteredOrders.length === 0 ? <EmptyState title="No orders found" body="Paid and pending orders will appear here once customers check out." /> : null}
+          <div className="glass rounded-[1.5rem] border border-rosewood/20 p-6">
+            <h2 className="font-serif text-3xl font-semibold text-rosewood">Clear order database</h2>
+            <p className="mt-2 text-sm leading-6 text-ink/65">This removes orders only. It does not delete users, notes, pricing, promo codes, queries, or email logs. Type <strong>DELETE ORDERS</strong> to enable the button.</p>
+            <div className="mt-4 grid gap-3 md:grid-cols-[1fr_auto]">
+              <Input value={clearText} onChange={(event) => setClearText(event.target.value)} placeholder="DELETE ORDERS" />
+              <Button variant="secondary" loading={saving} disabled={clearText !== "DELETE ORDERS"} onClick={clearOrders}>Clear orders</Button>
+            </div>
+          </div>
           {filteredOrders.map((order) => (
             <article className="glass rounded-[1.5rem] p-6" key={order.id}>
               <div className="grid gap-4 lg:grid-cols-[1fr_220px]">
@@ -156,6 +209,35 @@ export default function AdminPage() {
               </div>
             </article>
           ))}
+        </div>
+      ) : null}
+      {tab === "queries" ? (
+        <div className="mt-8 grid gap-6 lg:grid-cols-[420px_1fr]">
+          <form onSubmit={sendQueryEmail} className="glass grid h-fit gap-4 rounded-[1.5rem] p-6">
+            <h2 className="font-serif text-3xl font-semibold">{queryForm.id ? "Reply to query" : "Create email query"}</h2>
+            <Field label="Customer name"><Input value={queryForm.name} onChange={(e) => setQueryForm({ ...queryForm, name: e.target.value })} disabled={Boolean(queryForm.id)} required={!queryForm.id} /></Field>
+            <Field label="Customer email"><Input value={queryForm.email} onChange={(e) => setQueryForm({ ...queryForm, email: e.target.value })} disabled={Boolean(queryForm.id)} required={!queryForm.id} /></Field>
+            <Field label="Subject"><Input value={queryForm.subject} onChange={(e) => setQueryForm({ ...queryForm, subject: e.target.value })} required /></Field>
+            <Field label="Message"><Textarea value={queryForm.message} onChange={(e) => setQueryForm({ ...queryForm, message: e.target.value })} required /></Field>
+            {queryForm.id ? <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={queryForm.close} onChange={(e) => setQueryForm({ ...queryForm, close: e.target.checked })} /> Close query after sending</label> : null}
+            <Button loading={saving}>{queryForm.id ? "Send reply" : "Create query and email customer"}</Button>
+          </form>
+          <div className="grid gap-3">
+            {contactQueries.length === 0 ? <EmptyState title="No queries yet" body="Contact form inquiries and admin-created email threads will appear here." /> : null}
+            {contactQueries.map((item) => (
+              <article className="glass rounded-[1.25rem] p-5" key={item.id}>
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <h2 className="font-serif text-2xl font-semibold">{item.subject}</h2>
+                    <p className="mt-1 text-sm text-ink/60">{item.code} - {item.name} - {item.email}</p>
+                  </div>
+                  <span className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wider ${item.status === "open" ? "bg-moss/10 text-moss" : "bg-ink/10 text-ink/60"}`}>{item.status}</span>
+                </div>
+                <p className="mt-3 text-sm leading-6 text-ink/65">{item.message}</p>
+                <Button className="mt-4" variant="secondary" onClick={() => setQueryForm({ id: item.id, name: item.name, email: item.email, subject: `Re: ${item.subject} [${item.code}]`, message: "", close: false })}>Reply from dashboard</Button>
+              </article>
+            ))}
+          </div>
         </div>
       ) : null}
       {tab === "notes" ? (

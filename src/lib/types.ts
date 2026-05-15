@@ -54,13 +54,25 @@ export type PromoCode = {
 export type EmailEvent = {
   id: string;
   orderId?: string;
-  type: "customer_confirmation" | "admin_new_order" | "status_update";
+  type: "customer_confirmation" | "admin_new_order" | "status_update" | "contact_customer" | "contact_admin" | "contact_reply";
   to: string[];
   subject: string;
   status: "sent" | "skipped" | "failed";
   resendId?: string;
   error?: string;
   createdAt?: Timestamp;
+};
+
+export type ContactQuery = {
+  id: string;
+  code: string;
+  name: string;
+  email: string;
+  subject: string;
+  message: string;
+  status: "open" | "closed";
+  createdAt?: Timestamp;
+  updatedAt?: Timestamp;
 };
 
 export type ProductOptions = {

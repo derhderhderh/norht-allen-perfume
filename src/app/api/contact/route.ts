@@ -1,47 +1,40 @@
 import { NextRequest, NextResponse } from "next/server";
-import { Resend } from "resend";
+import { FieldValue } from "firebase-admin/firestore";
 import { z } from "zod";
+import { getAdminDb } from "@/lib/firebase-admin";
+import { sendContactQueryAdmin, sendContactQueryCustomer } from "@/lib/email";
+import type { ContactQuery } from "@/lib/types";
 
 const schema = z.object({
-  name: z.string().min(1),
-  email: z.string().email(),
-  message: z.string().min(1)
+  name: z.string().trim().min(1).max(100),
+  email: z.string().trim().email(),
+  subject: z.string().trim().min(2).max(120),
+  message: z.string().trim().min(1).max(2000)
 });
 
-function escapeHtml(value: string) {
-  return value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
+function queryCode() {
+  const stamp = new Date().toISOString().slice(2, 10).replaceAll("-", "");
+  const random = Math.random().toString(36).slice(2, 7).toUpperCase();
+  return `NAP-${stamp}-${random}`;
 }
 
 export async function POST(request: NextRequest) {
   try {
     const body = schema.parse(await request.json());
-    const apiKey = process.env.RESEND_API_KEY;
-    const to = [process.env.ADMIN_EMAIL, process.env.PERSONAL_ORDER_EMAIL || "wilkinsr542@gmail.com"].filter(Boolean) as string[];
-
-    if (!apiKey) {
-      return NextResponse.json({ error: "Contact email is not configured yet." }, { status: 500 });
-    }
-
-    const resend = new Resend(apiKey);
-    const result = await resend.emails.send({
-      from: process.env.EMAIL_FROM || "North Allen Perfumery <onboarding@resend.dev>",
-      to,
-      replyTo: body.email,
-      subject: `Website inquiry from ${body.name}`,
-      html: `<p><strong>${escapeHtml(body.name)}</strong> (${escapeHtml(body.email)}) wrote:</p><p>${escapeHtml(body.message).replaceAll("\n", "<br />")}</p>`
+    const code = queryCode();
+    const ref = await getAdminDb().collection("contactQueries").add({
+      ...body,
+      code,
+      status: "open",
+      createdAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp()
     });
 
-    if (result.error) {
-      return NextResponse.json({ error: result.error.message }, { status: 500 });
-    }
+    const query = { id: ref.id, ...body, code, status: "open" } as ContactQuery;
+    await Promise.all([sendContactQueryCustomer(query), sendContactQueryAdmin(query)]);
 
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true, code });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Unable to send message" }, { status: 400 });
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Unable to create inquiry" }, { status: 400 });
   }
 }
