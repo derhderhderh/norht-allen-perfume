@@ -51,6 +51,18 @@ export type PromoCode = {
   createdAt?: Timestamp;
 };
 
+export type EmailEvent = {
+  id: string;
+  orderId?: string;
+  type: "customer_confirmation" | "admin_new_order" | "status_update";
+  to: string[];
+  subject: string;
+  status: "sent" | "skipped" | "failed";
+  resendId?: string;
+  error?: string;
+  createdAt?: Timestamp;
+};
+
 export type ProductOptions = {
   bottleSizes: BottleSize[];
   scentStrengths: ScentStrength[];

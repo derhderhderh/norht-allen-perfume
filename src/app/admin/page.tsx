@@ -7,10 +7,10 @@ import { useAuth } from "@/components/auth-provider";
 import { Button, EmptyState, Field, Input, Section, Select, Textarea } from "@/components/ui";
 import { db } from "@/lib/firebase";
 import { deleteDoc, doc } from "firebase/firestore";
-import { getAllNotes, getAllOrders, getProductOptions, getPromoCodes, saveNote, saveProductOptions, savePromoCode } from "@/lib/firestore";
+import { getAllNotes, getAllOrders, getEmailEvents, getProductOptions, getPromoCodes, saveNote, saveProductOptions, savePromoCode } from "@/lib/firestore";
 import { defaultOptions } from "@/lib/default-options";
 import { formatMoney } from "@/lib/utils";
-import { orderStatuses, type BottleSize, type FragranceNote, type OrderStatus, type PerfumeOrder, type ProductOptions, type PromoCode, type ScentStrength } from "@/lib/types";
+import { orderStatuses, type BottleSize, type EmailEvent, type FragranceNote, type OrderStatus, type PerfumeOrder, type ProductOptions, type PromoCode, type ScentStrength } from "@/lib/types";
 
 const blankNote = { name: "", category: "top" as const, description: "", imageUrl: "", active: true };
 const blankPromo = { code: "", description: "100% off order", active: true };
@@ -21,19 +21,21 @@ export default function AdminPage() {
   const [notes, setNotes] = useState<FragranceNote[]>([]);
   const [orders, setOrders] = useState<PerfumeOrder[]>([]);
   const [promos, setPromos] = useState<PromoCode[]>([]);
+  const [emailEvents, setEmailEvents] = useState<EmailEvent[]>([]);
   const [options, setOptions] = useState<ProductOptions>(defaultOptions);
   const [noteForm, setNoteForm] = useState<Partial<FragranceNote> & { name: string; category: "top" | "middle" | "base" }>(blankNote);
   const [promoForm, setPromoForm] = useState<Partial<PromoCode> & { code: string }>(blankPromo);
   const [query, setQuery] = useState("");
-  const [tab, setTab] = useState<"orders" | "notes" | "pricing" | "promos">("orders");
+  const [tab, setTab] = useState<"orders" | "notes" | "pricing" | "promos" | "emails">("orders");
   const [saving, setSaving] = useState(false);
 
   async function loadData() {
-    const [allNotes, allOrders, productOptions, allPromos] = await Promise.all([getAllNotes(), getAllOrders(), getProductOptions(), getPromoCodes()]);
+    const [allNotes, allOrders, productOptions, allPromos, allEmailEvents] = await Promise.all([getAllNotes(), getAllOrders(), getProductOptions(), getPromoCodes(), getEmailEvents()]);
     setNotes(allNotes);
     setOrders(allOrders);
     setOptions(productOptions);
     setPromos(allPromos);
+    setEmailEvents(allEmailEvents);
   }
 
   useEffect(() => {
@@ -104,7 +106,7 @@ export default function AdminPage() {
           <h1 className="mt-3 font-serif text-5xl font-semibold">Studio command center</h1>
         </div>
         <div className="flex rounded-full border border-ink/10 bg-white/60 p-1">
-          {(["orders", "notes", "pricing", "promos"] as const).map((item) => (
+          {(["orders", "notes", "pricing", "promos", "emails"] as const).map((item) => (
             <button key={item} onClick={() => setTab(item)} className={`rounded-full px-4 py-2 text-sm font-semibold capitalize ${tab === item ? "bg-ink text-pearl" : "text-ink/65"}`}>{item}</button>
           ))}
         </div>
@@ -183,6 +185,24 @@ export default function AdminPage() {
               </div>
             ))}
           </div>
+        </div>
+      ) : null}
+      {tab === "emails" ? (
+        <div className="mt-8 grid gap-3">
+          {emailEvents.length === 0 ? <EmptyState title="No email events yet" body="Paid order, promo, and status emails will be logged here after the app attempts to send them." /> : null}
+          {emailEvents.map((event) => (
+            <article className="glass rounded-[1.25rem] p-5" key={event.id}>
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h2 className="font-serif text-2xl font-semibold">{event.subject}</h2>
+                  <p className="mt-1 text-sm text-ink/60">{event.type.replaceAll("_", " ")} - {event.to.join(", ")}</p>
+                </div>
+                <span className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wider ${event.status === "sent" ? "bg-moss/10 text-moss" : event.status === "failed" ? "bg-rosewood/10 text-rosewood" : "bg-ink/10 text-ink/60"}`}>{event.status}</span>
+              </div>
+              {event.resendId ? <p className="mt-3 text-xs text-ink/55">Resend id: {event.resendId}</p> : null}
+              {event.error ? <p className="mt-3 text-sm text-rosewood">{event.error}</p> : null}
+            </article>
+          ))}
         </div>
       ) : null}
     </Section>
