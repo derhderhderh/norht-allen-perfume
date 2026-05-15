@@ -15,6 +15,122 @@ function adminRecipients() {
   return [...new Set([process.env.ADMIN_EMAIL, process.env.PERSONAL_ORDER_EMAIL, ownerEmail].filter(Boolean) as string[])];
 }
 
+function escapeHtml(value: string) {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function label(value: string) {
+  return escapeHtml(value.replaceAll("_", " "));
+}
+
+function selectedNotes(order: PerfumeOrder) {
+  return (["top", "middle", "base"] as const)
+    .map((category) => {
+      const names = order.selectedNotes?.[category]?.map((note) => note.name).join(", ") || "None";
+      return `
+        <tr>
+          <td style="padding:10px 0;color:#7a6d5b;font-size:13px;text-transform:uppercase;letter-spacing:1.5px;width:95px;">${category}</td>
+          <td style="padding:10px 0;color:#1f1a14;font-size:15px;line-height:22px;">${escapeHtml(names)}</td>
+        </tr>
+      `;
+    })
+    .join("");
+}
+
+function moneyRows(order: PerfumeOrder) {
+  const subtotal = order.subtotal ?? order.price;
+  const discount = order.discountAmount ?? 0;
+  return `
+    <tr>
+      <td style="padding:8px 0;color:#7a6d5b;font-size:14px;">Subtotal</td>
+      <td style="padding:8px 0;color:#1f1a14;font-size:14px;text-align:right;">${formatMoney(subtotal)}</td>
+    </tr>
+    ${discount > 0 ? `
+      <tr>
+        <td style="padding:8px 0;color:#7a6d5b;font-size:14px;">Promo ${order.promoCode ? `(${escapeHtml(order.promoCode)})` : ""}</td>
+        <td style="padding:8px 0;color:#1f1a14;font-size:14px;text-align:right;">-${formatMoney(discount)}</td>
+      </tr>
+    ` : ""}
+    <tr>
+      <td style="padding:14px 0 0;color:#1f1a14;font-size:16px;font-weight:700;border-top:1px solid #eadfce;">Total paid</td>
+      <td style="padding:14px 0 0;color:#1f1a14;font-size:22px;font-weight:700;text-align:right;border-top:1px solid #eadfce;">${formatMoney(order.price)}</td>
+    </tr>
+  `;
+}
+
+function emailShell(preheader: string, title: string, intro: string, body: string) {
+  return `
+    <!doctype html>
+    <html>
+      <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+        <title>${escapeHtml(title)}</title>
+      </head>
+      <body style="margin:0;background:#f6f1ea;color:#1f1a14;font-family:Arial,Helvetica,sans-serif;">
+        <div style="display:none;max-height:0;overflow:hidden;opacity:0;">${escapeHtml(preheader)}</div>
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f6f1ea;padding:28px 12px;">
+          <tr>
+            <td align="center">
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:640px;background:#fffdf8;border:1px solid #eadfce;border-radius:22px;overflow:hidden;box-shadow:0 18px 45px rgba(49,38,25,.10);">
+                <tr>
+                  <td style="padding:34px 32px 24px;text-align:center;background:#1f1a14;">
+                    <div style="font-family:Georgia,serif;font-size:30px;letter-spacing:1px;color:#d7b56d;">North Allen</div>
+                    <div style="margin-top:6px;font-size:11px;letter-spacing:5px;text-transform:uppercase;color:#fffdf8;">Perfumery</div>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:34px 32px 10px;">
+                    <p style="margin:0 0 10px;color:#9a7b36;font-size:12px;font-weight:700;letter-spacing:2.4px;text-transform:uppercase;">Custom fragrance studio</p>
+                    <h1 style="margin:0;font-family:Georgia,serif;font-size:38px;line-height:42px;font-weight:600;color:#1f1a14;">${escapeHtml(title)}</h1>
+                    <p style="margin:18px 0 0;color:#63594c;font-size:16px;line-height:26px;">${intro}</p>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:18px 32px 36px;">${body}</td>
+                </tr>
+                <tr>
+                  <td style="padding:22px 32px;text-align:center;background:#f4eadc;color:#7a6d5b;font-size:12px;line-height:18px;">
+                    North Allen Perfumery<br />
+                    Custom perfume and cologne, blended with boutique care.
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </body>
+    </html>
+  `;
+}
+
+function orderDetailsCard(order: PerfumeOrder) {
+  return `
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#fbf7ef;border:1px solid #eadfce;border-radius:18px;padding:4px 18px;margin-top:20px;">
+      <tr>
+        <td style="padding:18px 0 6px;">
+          <div style="font-family:Georgia,serif;font-size:26px;line-height:30px;color:#1f1a14;">${escapeHtml(order.perfumeName)}</div>
+          <div style="margin-top:6px;color:#7a6d5b;font-size:14px;">${escapeHtml(order.bottleSize?.name || "Bottle")} - ${escapeHtml(order.scentStrength?.name || "Strength")}</div>
+        </td>
+      </tr>
+      ${selectedNotes(order)}
+    </table>
+  `;
+}
+
+function totalsCard(order: PerfumeOrder) {
+  return `
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#fffdf8;border:1px solid #eadfce;border-radius:18px;padding:10px 18px;margin-top:16px;">
+      ${moneyRows(order)}
+    </table>
+  `;
+}
+
 async function logEmailEvent(data: {
   orderId?: string;
   type: "customer_confirmation" | "admin_new_order" | "status_update";
@@ -69,32 +185,67 @@ async function sendTrackedEmail(data: {
 }
 
 export async function sendCustomerConfirmation(order: PerfumeOrder) {
+  const title = "Your scent is confirmed";
   await sendTrackedEmail({
     orderId: order.id,
     type: "customer_confirmation",
     to: [order.customerEmail],
     subject: "Your North Allen Perfumery order is confirmed",
-    html: `<p>Hi ${order.customerName},</p><p>We received your custom scent order for <strong>${order.perfumeName}</strong>.</p><p>Total: ${formatMoney(order.price)}</p><p>Promo code: ${order.promoCode || "None"}</p><p>We will begin production shortly and send updates as it moves forward.</p>`
+    html: emailShell(
+      `Order confirmed for ${order.perfumeName}.`,
+      title,
+      `Hi ${escapeHtml(order.customerName)}, your custom fragrance order has been received and is ready for the studio queue.`,
+      `
+        ${orderDetailsCard(order)}
+        ${totalsCard(order)}
+        <p style="margin:20px 0 0;color:#63594c;font-size:15px;line-height:24px;">We will begin production shortly and send updates as your bottle moves through the studio.</p>
+      `
+    )
   });
 }
 
 export async function sendAdminNewOrder(order: PerfumeOrder) {
   const to = adminRecipients();
+  const title = "New paid order";
   await sendTrackedEmail({
     orderId: order.id,
     type: "admin_new_order",
     to,
     subject: `New custom order: ${order.perfumeName}`,
-    html: `<p>A new paid order is ready to begin.</p><p><strong>${order.customerName}</strong> (${order.customerEmail}) ordered <strong>${order.perfumeName}</strong>.</p><p>Total paid: ${formatMoney(order.price)}</p><p>Subtotal: ${formatMoney(order.subtotal ?? order.price)}</p><p>Promo code: ${order.promoCode || "None"}</p><p>Status: ${order.orderStatus}</p>`
+    html: emailShell(
+      `${order.customerName} placed a paid order.`,
+      title,
+      `<strong>${escapeHtml(order.customerName)}</strong> placed a paid custom fragrance order. Start this blend when you are ready.`,
+      `
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#1f1a14;border-radius:18px;padding:18px;margin-top:20px;">
+          <tr><td style="color:#d7b56d;font-size:12px;letter-spacing:2px;text-transform:uppercase;">Customer</td></tr>
+          <tr><td style="padding-top:8px;color:#fffdf8;font-size:16px;line-height:24px;">${escapeHtml(order.customerName)}<br />${escapeHtml(order.customerEmail)}</td></tr>
+          <tr><td style="padding-top:16px;color:#d7b56d;font-size:12px;letter-spacing:2px;text-transform:uppercase;">Status</td></tr>
+          <tr><td style="padding-top:8px;color:#fffdf8;font-size:16px;text-transform:capitalize;">${label(order.orderStatus)}</td></tr>
+        </table>
+        ${orderDetailsCard(order)}
+        ${totalsCard(order)}
+        ${order.specialInstructions ? `<div style="margin-top:16px;padding:16px;border-radius:16px;background:#f4eadc;color:#4b4238;font-size:14px;line-height:22px;"><strong>Special instructions</strong><br />${escapeHtml(order.specialInstructions)}</div>` : ""}
+      `
+    )
   });
 }
 
 export async function sendStatusUpdate(order: PerfumeOrder, status: OrderStatus) {
+  const readableStatus = status.replaceAll("_", " ");
   await sendTrackedEmail({
     orderId: order.id,
     type: "status_update",
     to: [order.customerEmail],
-    subject: `Your scent is now ${status.replaceAll("_", " ")}`,
-    html: `<p>Hi ${order.customerName},</p><p>Your order <strong>${order.perfumeName}</strong> is now <strong>${status.replaceAll("_", " ")}</strong>.</p>`
+    subject: `Your scent is now ${readableStatus}`,
+    html: emailShell(
+      `${order.perfumeName} is now ${readableStatus}.`,
+      "Order status updated",
+      `Hi ${escapeHtml(order.customerName)}, your custom scent <strong>${escapeHtml(order.perfumeName)}</strong> is now <strong style="text-transform:capitalize;">${escapeHtml(readableStatus)}</strong>.`,
+      `
+        ${orderDetailsCard(order)}
+        <div style="margin-top:18px;padding:16px;border-radius:16px;background:#f4eadc;color:#4b4238;font-size:14px;line-height:22px;">Thank you for letting us craft this bottle for you.</div>
+      `
+    )
   });
 }
