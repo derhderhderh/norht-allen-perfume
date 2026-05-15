@@ -28,14 +28,35 @@ export default function AdminPage() {
   const [query, setQuery] = useState("");
   const [tab, setTab] = useState<"orders" | "notes" | "pricing" | "promos" | "emails">("orders");
   const [saving, setSaving] = useState(false);
+  const [loadError, setLoadError] = useState("");
 
   async function loadData() {
-    const [allNotes, allOrders, productOptions, allPromos, allEmailEvents] = await Promise.all([getAllNotes(), getAllOrders(), getProductOptions(), getPromoCodes(), getEmailEvents()]);
-    setNotes(allNotes);
-    setOrders(allOrders);
-    setOptions(productOptions);
-    setPromos(allPromos);
-    setEmailEvents(allEmailEvents);
+    setLoadError("");
+    const [notesResult, ordersResult, optionsResult, promosResult, emailsResult] = await Promise.allSettled([
+      getAllNotes(),
+      getAllOrders(),
+      getProductOptions(),
+      getPromoCodes(),
+      getEmailEvents()
+    ]);
+
+    if (notesResult.status === "fulfilled") setNotes(notesResult.value);
+    if (ordersResult.status === "fulfilled") setOrders(ordersResult.value);
+    if (optionsResult.status === "fulfilled") setOptions(optionsResult.value);
+    if (promosResult.status === "fulfilled") setPromos(promosResult.value);
+    if (emailsResult.status === "fulfilled") setEmailEvents(emailsResult.value);
+
+    const failed = [
+      notesResult.status === "rejected" ? "notes" : "",
+      ordersResult.status === "rejected" ? "orders" : "",
+      optionsResult.status === "rejected" ? "pricing" : "",
+      promosResult.status === "rejected" ? "promo codes" : "",
+      emailsResult.status === "rejected" ? "email logs" : ""
+    ].filter(Boolean);
+
+    if (failed.length > 0) {
+      setLoadError(`Some admin data could not load: ${failed.join(", ")}. Check deployed Firestore rules if this persists.`);
+    }
   }
 
   useEffect(() => {
@@ -116,6 +137,7 @@ export default function AdminPage() {
         <div className="glass rounded-[1.25rem] p-5"><p className="text-sm text-ink/60">Orders</p><p className="font-serif text-3xl font-semibold">{orders.length}</p></div>
         <div className="glass rounded-[1.25rem] p-5"><p className="text-sm text-ink/60">Active notes</p><p className="font-serif text-3xl font-semibold">{notes.filter((n) => n.active).length}</p></div>
       </div>
+      {loadError ? <p className="mt-4 rounded-2xl bg-rosewood/10 px-4 py-3 text-sm text-rosewood">{loadError}</p> : null}
       {tab === "orders" ? (
         <div className="mt-8 grid gap-4">
           <div className="relative"><Search className="absolute left-4 top-3.5 h-4 w-4 text-ink/45" /><Input className="pl-11" placeholder="Search orders, customers, statuses" value={query} onChange={(e) => setQuery(e.target.value)} /></div>
