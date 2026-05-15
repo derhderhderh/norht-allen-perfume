@@ -134,7 +134,7 @@ function totalsCard(order: PerfumeOrder) {
 async function logEmailEvent(data: {
   orderId?: string;
   queryId?: string;
-  type: "customer_confirmation" | "admin_new_order" | "status_update" | "contact_customer" | "contact_admin" | "contact_reply";
+  type: "customer_confirmation" | "admin_new_order" | "status_update" | "contact_customer" | "contact_admin" | "contact_reply" | "contact_follow_up";
   to: string[];
   subject: string;
   status: "sent" | "skipped" | "failed";
@@ -154,7 +154,7 @@ async function logEmailEvent(data: {
 async function sendTrackedEmail(data: {
   orderId?: string;
   queryId?: string;
-  type: "customer_confirmation" | "admin_new_order" | "status_update" | "contact_customer" | "contact_admin" | "contact_reply";
+  type: "customer_confirmation" | "admin_new_order" | "status_update" | "contact_customer" | "contact_admin" | "contact_reply" | "contact_follow_up";
   to: string[];
   subject: string;
   html: string;
@@ -311,6 +311,31 @@ export async function sendContactReply(query: ContactQuery, subject: string, mes
       `
         <div style="margin-top:20px;padding:18px;border-radius:18px;background:#fbf7ef;border:1px solid #eadfce;color:#4b4238;font-size:15px;line-height:24px;">${escapeHtml(message).replaceAll("\n", "<br />")}</div>
         <p style="margin:20px 0 0;color:#63594c;font-size:15px;line-height:24px;">To reply from your own email, send a message to <strong>contact@northallenperfumery.org</strong> and include <strong>${escapeHtml(query.code)}</strong> in the subject.</p>
+      `
+    )
+  });
+}
+
+export async function sendContactFollowUpAdmin(query: ContactQuery, subject: string, message: string, fromEmail: string) {
+  await sendTrackedEmail({
+    queryId: query.id,
+    type: "contact_follow_up",
+    to: adminRecipients(),
+    subject: `Reply received ${query.code}: ${subject}`,
+    html: emailShell(
+      `${query.name} replied to inquiry ${query.code}.`,
+      "Customer reply received",
+      `<strong>${escapeHtml(query.name)}</strong> replied to inquiry <strong>${escapeHtml(query.code)}</strong>. The conversation has been added to the admin dashboard.`,
+      `
+        <div style="margin-top:20px;padding:18px;border-radius:18px;background:#1f1a14;color:#fffdf8;">
+          <p style="margin:0;color:#d7b56d;font-size:12px;font-weight:700;letter-spacing:2px;text-transform:uppercase;">Customer</p>
+          <p style="margin:8px 0 0;color:#fffdf8;font-size:15px;line-height:23px;">${escapeHtml(query.name)}<br />${escapeHtml(fromEmail)}</p>
+          <p style="margin:16px 0 0;color:#d7b56d;font-size:12px;font-weight:700;letter-spacing:2px;text-transform:uppercase;">Code</p>
+          <p style="margin:8px 0 0;font-family:Georgia,serif;font-size:28px;">${escapeHtml(query.code)}</p>
+        </div>
+        <div style="margin-top:16px;padding:18px;border-radius:18px;background:#fbf7ef;border:1px solid #eadfce;color:#4b4238;font-size:15px;line-height:24px;">
+          <strong>${escapeHtml(subject)}</strong><br />${escapeHtml(message).replaceAll("\n", "<br />")}
+        </div>
       `
     )
   });
