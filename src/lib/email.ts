@@ -4,19 +4,7 @@ import { getAdminDb } from "@/lib/firebase-admin";
 import type { OrderStatus, PerfumeOrder } from "@/lib/types";
 import { formatMoney } from "@/lib/utils";
 
-function senderAddress() {
-  const raw = process.env.EMAIL_FROM || "North Allen Perfumery <onboarding@resend.dev>";
-  const cleaned = raw.trim().replace(/^"|"$/g, "").replace(/^'|'$/g, "");
-  const lower = cleaned.toLowerCase();
-  if (lower.includes("yourdomain.com") || lower.includes("example.com")) {
-    return "North Allen Perfumery <onboarding@resend.dev>";
-  }
-  const validPlain = /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(cleaned);
-  const validNamed = /^.+\s<[^@\s<>]+@[^@\s<>]+\.[^@\s<>]+>$/.test(cleaned);
-  return validPlain || validNamed ? cleaned : "North Allen Perfumery <onboarding@resend.dev>";
-}
-
-const from = senderAddress();
+const from = "North Allen Perfumery <orders@northallenperfumery.org>";
 const ownerEmail = "wilkinsr542@gmail.com";
 
 function emailClient() {
