@@ -4,7 +4,15 @@ import { getAdminDb } from "@/lib/firebase-admin";
 import type { OrderStatus, PerfumeOrder } from "@/lib/types";
 import { formatMoney } from "@/lib/utils";
 
-const from = process.env.EMAIL_FROM || "North Allen Perfumery <orders@example.com>";
+function senderAddress() {
+  const raw = process.env.EMAIL_FROM || "North Allen Perfumery <onboarding@resend.dev>";
+  const cleaned = raw.trim().replace(/^"|"$/g, "").replace(/^'|'$/g, "");
+  const validPlain = /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(cleaned);
+  const validNamed = /^.+\s<[^@\s<>]+@[^@\s<>]+\.[^@\s<>]+>$/.test(cleaned);
+  return validPlain || validNamed ? cleaned : "North Allen Perfumery <onboarding@resend.dev>";
+}
+
+const from = senderAddress();
 const ownerEmail = "wilkinsr542@gmail.com";
 
 function emailClient() {

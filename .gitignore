@@ -72,3 +72,4 @@ temp/
 
 # Local setup scripts with private credentials
 scripts/setup-database.local.mjs
+scripts/check-email-events.local.mjs
