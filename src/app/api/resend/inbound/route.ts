@@ -100,6 +100,15 @@ async function findQueryByCode(code: string) {
   return { ref: doc.ref, query: { id: doc.id, ...doc.data() } as ContactQuery };
 }
 
+export async function GET() {
+  return NextResponse.json({
+    ok: true,
+    endpoint: "resend-inbound",
+    accepts: "POST",
+    event: "email.received"
+  });
+}
+
 export async function POST(request: NextRequest) {
   const rawBody = await request.text();
   if (!verifySvixSignature(rawBody, request)) {
