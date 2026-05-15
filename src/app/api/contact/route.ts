@@ -22,15 +22,26 @@ export async function POST(request: NextRequest) {
   try {
     const body = schema.parse(await request.json());
     const code = queryCode();
+    const message = {
+      id: crypto.randomUUID(),
+      from: "customer",
+      senderName: body.name,
+      senderEmail: body.email,
+      subject: body.subject,
+      body: body.message,
+      createdAt: new Date().toISOString()
+    };
     const ref = await getAdminDb().collection("contactQueries").add({
       ...body,
       code,
+      messages: [message],
       status: "open",
       createdAt: FieldValue.serverTimestamp(),
-      updatedAt: FieldValue.serverTimestamp()
+      updatedAt: FieldValue.serverTimestamp(),
+      lastMessageAt: FieldValue.serverTimestamp()
     });
 
-    const query = { id: ref.id, ...body, code, status: "open" } as ContactQuery;
+    const query = { id: ref.id, ...body, code, messages: [message], status: "open" } as ContactQuery;
     await Promise.all([sendContactQueryCustomer(query), sendContactQueryAdmin(query)]);
 
     return NextResponse.json({ ok: true, code });

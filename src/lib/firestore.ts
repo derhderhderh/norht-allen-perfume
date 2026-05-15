@@ -123,5 +123,5 @@ export async function getContactQueries() {
   const snap = await getDocs(query(collection(db, "contactQueries"), limit(100)));
   return snap.docs
     .map((d) => ({ id: d.id, ...d.data() }) as ContactQuery)
-    .sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
+    .sort((a, b) => ((b.lastMessageAt || b.updatedAt || b.createdAt)?.toMillis?.() || 0) - ((a.lastMessageAt || a.updatedAt || a.createdAt)?.toMillis?.() || 0));
 }

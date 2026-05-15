@@ -10,7 +10,7 @@ import { deleteDoc, doc } from "firebase/firestore";
 import { getAllNotes, getAllOrders, getContactQueries, getEmailEvents, getProductOptions, getPromoCodes, saveNote, saveProductOptions, savePromoCode } from "@/lib/firestore";
 import { defaultOptions } from "@/lib/default-options";
 import { formatMoney } from "@/lib/utils";
-import { orderStatuses, type BottleSize, type ContactQuery, type EmailEvent, type FragranceNote, type OrderStatus, type PerfumeOrder, type ProductOptions, type PromoCode, type ScentStrength } from "@/lib/types";
+import { orderStatuses, type BottleSize, type ContactMessage, type ContactQuery, type EmailEvent, type FragranceNote, type OrderStatus, type PerfumeOrder, type ProductOptions, type PromoCode, type ScentStrength } from "@/lib/types";
 
 const blankNote = { name: "", category: "top" as const, description: "", imageUrl: "", active: true };
 const blankPromo = { code: "", description: "100% off order", active: true };
@@ -32,6 +32,8 @@ export default function AdminPage() {
   const [loadError, setLoadError] = useState("");
   const [clearText, setClearText] = useState("");
   const [queryForm, setQueryForm] = useState({ id: "", name: "", email: "", subject: "", message: "", close: false });
+  const [selectedQueryId, setSelectedQueryId] = useState("");
+  const [creatingQuery, setCreatingQuery] = useState(false);
 
   async function loadData() {
     setLoadError("");
@@ -77,6 +79,14 @@ export default function AdminPage() {
   }, [orders, query]);
 
   const revenue = orders.filter((order) => order.paymentStatus === "paid").reduce((sum, order) => sum + order.price, 0);
+  const selectedContactQuery = useMemo(() => contactQueries.find((item) => item.id === selectedQueryId) || contactQueries[0] || null, [contactQueries, selectedQueryId]);
+  const openQueries = contactQueries.filter((item) => item.status === "open").length;
+
+  useEffect(() => {
+    if (tab === "queries" && !selectedQueryId && contactQueries[0] && !creatingQuery) {
+      selectContactQuery(contactQueries[0]);
+    }
+  }, [tab, selectedQueryId, contactQueries, creatingQuery]);
 
   async function submitNote(event: React.FormEvent) {
     event.preventDefault();
@@ -141,6 +151,7 @@ export default function AdminPage() {
     if (!user) return;
     setSaving(true);
     const idToken = await user.getIdToken();
+    const currentQueryId = queryForm.id;
     const res = await fetch("/api/admin/contact-queries", {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
@@ -150,10 +161,45 @@ export default function AdminPage() {
       const data = await res.json();
       setLoadError(data.error || "Unable to send query email.");
     } else {
-      setQueryForm({ id: "", name: "", email: "", subject: "", message: "", close: false });
+      const data = await res.json();
+      if (currentQueryId) {
+        const item = contactQueries.find((queryItem) => queryItem.id === currentQueryId);
+        setQueryForm({
+          id: currentQueryId,
+          name: item?.name || queryForm.name,
+          email: item?.email || queryForm.email,
+          subject: item ? `Re: ${item.subject} [${item.code}]` : queryForm.subject,
+          message: "",
+          close: false
+        });
+      } else {
+        setSelectedQueryId(data.id || "");
+        setQueryForm({ id: "", name: "", email: "", subject: "", message: "", close: false });
+        setCreatingQuery(false);
+      }
+      setCreatingQuery(false);
     }
     await loadData();
     setSaving(false);
+  }
+
+  function selectContactQuery(item: ContactQuery) {
+    setCreatingQuery(false);
+    setSelectedQueryId(item.id);
+    setQueryForm({
+      id: item.id,
+      name: item.name,
+      email: item.email,
+      subject: item.subject.startsWith("Re:") ? `${item.subject} [${item.code}]` : `Re: ${item.subject} [${item.code}]`,
+      message: "",
+      close: false
+    });
+  }
+
+  function startNewQuery() {
+    setCreatingQuery(true);
+    setSelectedQueryId("");
+    setQueryForm({ id: "", name: "", email: "", subject: "", message: "", close: false });
   }
 
   async function saveOptions() {
@@ -212,31 +258,104 @@ export default function AdminPage() {
         </div>
       ) : null}
       {tab === "queries" ? (
-        <div className="mt-8 grid gap-6 lg:grid-cols-[420px_1fr]">
-          <form onSubmit={sendQueryEmail} className="glass grid h-fit gap-4 rounded-[1.5rem] p-6">
-            <h2 className="font-serif text-3xl font-semibold">{queryForm.id ? "Reply to query" : "Create email query"}</h2>
-            <Field label="Customer name"><Input value={queryForm.name} onChange={(e) => setQueryForm({ ...queryForm, name: e.target.value })} disabled={Boolean(queryForm.id)} required={!queryForm.id} /></Field>
-            <Field label="Customer email"><Input value={queryForm.email} onChange={(e) => setQueryForm({ ...queryForm, email: e.target.value })} disabled={Boolean(queryForm.id)} required={!queryForm.id} /></Field>
-            <Field label="Subject"><Input value={queryForm.subject} onChange={(e) => setQueryForm({ ...queryForm, subject: e.target.value })} required /></Field>
-            <Field label="Message"><Textarea value={queryForm.message} onChange={(e) => setQueryForm({ ...queryForm, message: e.target.value })} required /></Field>
-            {queryForm.id ? <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={queryForm.close} onChange={(e) => setQueryForm({ ...queryForm, close: e.target.checked })} /> Close query after sending</label> : null}
-            <Button loading={saving}>{queryForm.id ? "Send reply" : "Create query and email customer"}</Button>
-          </form>
-          <div className="grid gap-3">
-            {contactQueries.length === 0 ? <EmptyState title="No queries yet" body="Contact form inquiries and admin-created email threads will appear here." /> : null}
-            {contactQueries.map((item) => (
-              <article className="glass rounded-[1.25rem] p-5" key={item.id}>
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <h2 className="font-serif text-2xl font-semibold">{item.subject}</h2>
-                    <p className="mt-1 text-sm text-ink/60">{item.code} - {item.name} - {item.email}</p>
-                  </div>
-                  <span className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wider ${item.status === "open" ? "bg-moss/10 text-moss" : "bg-ink/10 text-ink/60"}`}>{item.status}</span>
+        <div className="mt-8 grid gap-6 xl:grid-cols-[380px_1fr]">
+          <aside className="glass h-fit overflow-hidden rounded-[1.5rem]">
+            <div className="border-b border-ink/10 p-5">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.22em] text-champagne">Customer queries</p>
+                  <h2 className="mt-2 font-serif text-3xl font-semibold">{openQueries} open</h2>
                 </div>
-                <p className="mt-3 text-sm leading-6 text-ink/65">{item.message}</p>
-                <Button className="mt-4" variant="secondary" onClick={() => setQueryForm({ id: item.id, name: item.name, email: item.email, subject: `Re: ${item.subject} [${item.code}]`, message: "", close: false })}>Reply from dashboard</Button>
-              </article>
-            ))}
+                <Button type="button" variant="secondary" onClick={startNewQuery}><Plus className="h-4 w-4" /> New</Button>
+              </div>
+            </div>
+            <div className="max-h-[680px] overflow-y-auto p-3">
+              {contactQueries.length === 0 ? <EmptyState title="No queries yet" body="Contact form inquiries and admin-created email threads will appear here." /> : null}
+              {contactQueries.map((item) => {
+                const messages = getQueryMessages(item);
+                const last = messages[messages.length - 1];
+                const isSelected = item.id === selectedContactQuery?.id && !creatingQuery;
+                return (
+                  <button
+                    type="button"
+                    key={item.id}
+                    onClick={() => selectContactQuery(item)}
+                    className={`mb-2 w-full rounded-[1.1rem] border p-4 text-left transition ${isSelected ? "border-champagne bg-white/75 shadow-soft" : "border-transparent hover:bg-white/55"}`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate font-semibold">{item.subject}</p>
+                        <p className="mt-1 truncate text-xs text-ink/55">{item.name} - {item.code}</p>
+                      </div>
+                      <span className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider ${item.status === "open" ? "bg-moss/10 text-moss" : "bg-ink/10 text-ink/60"}`}>{item.status}</span>
+                    </div>
+                    <p className="mt-3 line-clamp-2 text-sm leading-5 text-ink/60">{last?.body || item.message}</p>
+                    <p className="mt-3 text-xs text-ink/45">{formatQueryDate(last?.createdAt) || item.email}</p>
+                  </button>
+                );
+              })}
+            </div>
+          </aside>
+
+          <div className="grid gap-6">
+            {creatingQuery ? (
+              <form onSubmit={sendQueryEmail} className="glass grid gap-4 rounded-[1.5rem] p-6">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.22em] text-champagne">Start a thread</p>
+                  <h2 className="mt-2 font-serif text-3xl font-semibold">Create email query</h2>
+                </div>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <Field label="Customer name"><Input value={queryForm.name} onChange={(e) => setQueryForm({ ...queryForm, name: e.target.value })} required /></Field>
+                  <Field label="Customer email"><Input value={queryForm.email} onChange={(e) => setQueryForm({ ...queryForm, email: e.target.value })} required /></Field>
+                </div>
+                <Field label="Subject"><Input value={queryForm.subject} onChange={(e) => setQueryForm({ ...queryForm, subject: e.target.value })} required /></Field>
+                <Field label="Message"><Textarea value={queryForm.message} onChange={(e) => setQueryForm({ ...queryForm, message: e.target.value })} required /></Field>
+                <Button loading={saving}>Create query and email customer</Button>
+              </form>
+            ) : selectedContactQuery ? (
+              <>
+                <article className="glass rounded-[1.5rem] p-6">
+                  <div className="flex flex-wrap items-start justify-between gap-4 border-b border-ink/10 pb-5">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.22em] text-champagne">{selectedContactQuery.code}</p>
+                      <h2 className="mt-2 font-serif text-4xl font-semibold">{selectedContactQuery.subject}</h2>
+                      <p className="mt-2 text-sm text-ink/60">{selectedContactQuery.name} - {selectedContactQuery.email}</p>
+                    </div>
+                    <span className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wider ${selectedContactQuery.status === "open" ? "bg-moss/10 text-moss" : "bg-ink/10 text-ink/60"}`}>{selectedContactQuery.status}</span>
+                  </div>
+                  <div className="mt-6 grid gap-4">
+                    {getQueryMessages(selectedContactQuery).map((message) => {
+                      const adminMessage = message.from === "admin";
+                      return (
+                        <div key={message.id} className={`flex ${adminMessage ? "justify-end" : "justify-start"}`}>
+                          <div className={`max-w-[760px] rounded-[1.25rem] border p-4 ${adminMessage ? "border-ink bg-ink text-pearl" : "border-ink/10 bg-white/70 text-ink"}`}>
+                            <div className="flex flex-wrap items-center justify-between gap-3">
+                              <p className={`text-sm font-semibold ${adminMessage ? "text-champagne" : "text-ink"}`}>{message.senderName}</p>
+                              <p className={`text-xs ${adminMessage ? "text-pearl/60" : "text-ink/45"}`}>{formatQueryDate(message.createdAt)}</p>
+                            </div>
+                            {message.subject ? <p className={`mt-2 text-xs font-semibold uppercase tracking-[0.18em] ${adminMessage ? "text-pearl/60" : "text-champagne"}`}>{message.subject}</p> : null}
+                            <p className={`mt-3 whitespace-pre-line text-sm leading-6 ${adminMessage ? "text-pearl/85" : "text-ink/70"}`}>{message.body}</p>
+                            {message.senderEmail ? <p className={`mt-3 text-xs ${adminMessage ? "text-pearl/50" : "text-ink/45"}`}>{message.senderEmail}</p> : null}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </article>
+                <form onSubmit={sendQueryEmail} className="glass grid gap-4 rounded-[1.5rem] p-6">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.22em] text-champagne">Reply</p>
+                    <h3 className="mt-2 font-serif text-3xl font-semibold">Continue the conversation</h3>
+                  </div>
+                  <Field label="Subject"><Input value={queryForm.subject} onChange={(e) => setQueryForm({ ...queryForm, subject: e.target.value })} required /></Field>
+                  <Field label="Message"><Textarea value={queryForm.message} onChange={(e) => setQueryForm({ ...queryForm, message: e.target.value })} required /></Field>
+                  <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={queryForm.close} onChange={(e) => setQueryForm({ ...queryForm, close: e.target.checked })} /> Close query after sending</label>
+                  <Button loading={saving}>Send reply</Button>
+                </form>
+              </>
+            ) : (
+              <EmptyState title="No query selected" body="Choose a customer query or create a new email thread." />
+            )}
           </div>
         </div>
       ) : null}
@@ -311,6 +430,31 @@ export default function AdminPage() {
       ) : null}
     </Section>
   );
+}
+
+function getQueryMessages(query: ContactQuery): ContactMessage[] {
+  if (query.messages?.length) {
+    return [...query.messages].sort((a, b) => new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime());
+  }
+
+  return [
+    {
+      id: `initial-${query.id}`,
+      from: "customer",
+      senderName: query.name,
+      senderEmail: query.email,
+      subject: query.subject,
+      body: query.message,
+      createdAt: query.createdAt?.toDate?.().toISOString()
+    }
+  ];
+}
+
+function formatQueryDate(value?: string) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 }
 
 function PricingEditor({ options, setOptions, save, saving }: { options: ProductOptions; setOptions: (options: ProductOptions) => void; save: () => void; saving: boolean }) {

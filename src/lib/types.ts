@@ -63,6 +63,16 @@ export type EmailEvent = {
   createdAt?: Timestamp;
 };
 
+export type ContactMessage = {
+  id: string;
+  from: "customer" | "admin" | "system";
+  senderName: string;
+  senderEmail?: string;
+  subject?: string;
+  body: string;
+  createdAt?: string;
+};
+
 export type ContactQuery = {
   id: string;
   code: string;
@@ -70,9 +80,11 @@ export type ContactQuery = {
   email: string;
   subject: string;
   message: string;
+  messages?: ContactMessage[];
   status: "open" | "closed";
   createdAt?: Timestamp;
   updatedAt?: Timestamp;
+  lastMessageAt?: Timestamp;
 };
 
 export type ProductOptions = {

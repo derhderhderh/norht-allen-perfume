@@ -32,27 +32,49 @@ export async function POST(request: NextRequest) {
       const snap = await ref.get();
       if (!snap.exists) throw new Error("Query not found");
       const query = { id: snap.id, ...snap.data() } as ContactQuery;
+      const message = {
+        id: crypto.randomUUID(),
+        from: "admin",
+        senderName: "North Allen Perfumery",
+        senderEmail: "contact@northallenperfumery.org",
+        subject: body.subject,
+        body: body.message,
+        createdAt: new Date().toISOString()
+      };
       await sendContactReply(query, body.subject, body.message);
       await ref.update({
+        messages: FieldValue.arrayUnion(message),
         status: body.close ? "closed" : "open",
-        updatedAt: FieldValue.serverTimestamp()
+        updatedAt: FieldValue.serverTimestamp(),
+        lastMessageAt: FieldValue.serverTimestamp()
       });
       return NextResponse.json({ ok: true });
     }
 
     if (!body.name || !body.email) throw new Error("Name and email are required for a new query.");
     const code = queryCode();
+    const message = {
+      id: crypto.randomUUID(),
+      from: "admin",
+      senderName: "North Allen Perfumery",
+      senderEmail: "contact@northallenperfumery.org",
+      subject: body.subject,
+      body: body.message,
+      createdAt: new Date().toISOString()
+    };
     const ref = await db.collection("contactQueries").add({
       name: body.name,
       email: body.email,
       subject: body.subject,
       message: body.message,
+      messages: [message],
       code,
       status: "open",
       createdAt: FieldValue.serverTimestamp(),
-      updatedAt: FieldValue.serverTimestamp()
+      updatedAt: FieldValue.serverTimestamp(),
+      lastMessageAt: FieldValue.serverTimestamp()
     });
-    const query = { id: ref.id, name: body.name, email: body.email, subject: body.subject, message: body.message, code, status: "open" } as ContactQuery;
+    const query = { id: ref.id, name: body.name, email: body.email, subject: body.subject, message: body.message, messages: [message], code, status: "open" } as ContactQuery;
     await Promise.all([sendContactQueryCustomer(query), sendContactQueryAdmin(query)]);
     return NextResponse.json({ ok: true, id: ref.id });
   } catch (error) {
