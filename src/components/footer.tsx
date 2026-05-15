@@ -15,6 +15,9 @@ export function Footer() {
           <Link href="/bag">Shopping bag</Link>
           <Link href="/shop">Shop</Link>
           <Link href="/dashboard">My orders</Link>
+          <Link href="/refund-policy">Refund policy</Link>
+          <Link href="/terms">Terms</Link>
+          <Link href="/privacy">Privacy</Link>
         </div>
         <div className="text-sm leading-6 text-pearl/70">
           <p>North Allen, Texas</p>
