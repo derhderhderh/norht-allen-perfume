@@ -54,7 +54,7 @@ export type PromoCode = {
 export type EmailEvent = {
   id: string;
   orderId?: string;
-  type: "customer_confirmation" | "admin_new_order" | "status_update" | "contact_customer" | "contact_admin" | "contact_reply" | "contact_follow_up";
+  type: "customer_confirmation" | "admin_new_order" | "status_update" | "contact_customer" | "contact_admin" | "contact_reply" | "contact_follow_up" | "contact_follow_up_customer";
   to: string[];
   subject: string;
   status: "sent" | "skipped" | "failed";

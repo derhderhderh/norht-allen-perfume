@@ -134,7 +134,7 @@ function totalsCard(order: PerfumeOrder) {
 async function logEmailEvent(data: {
   orderId?: string;
   queryId?: string;
-  type: "customer_confirmation" | "admin_new_order" | "status_update" | "contact_customer" | "contact_admin" | "contact_reply" | "contact_follow_up";
+  type: "customer_confirmation" | "admin_new_order" | "status_update" | "contact_customer" | "contact_admin" | "contact_reply" | "contact_follow_up" | "contact_follow_up_customer";
   to: string[];
   subject: string;
   status: "sent" | "skipped" | "failed";
@@ -154,7 +154,7 @@ async function logEmailEvent(data: {
 async function sendTrackedEmail(data: {
   orderId?: string;
   queryId?: string;
-  type: "customer_confirmation" | "admin_new_order" | "status_update" | "contact_customer" | "contact_admin" | "contact_reply" | "contact_follow_up";
+  type: "customer_confirmation" | "admin_new_order" | "status_update" | "contact_customer" | "contact_admin" | "contact_reply" | "contact_follow_up" | "contact_follow_up_customer";
   to: string[];
   subject: string;
   html: string;
@@ -336,6 +336,28 @@ export async function sendContactFollowUpAdmin(query: ContactQuery, subject: str
         <div style="margin-top:16px;padding:18px;border-radius:18px;background:#fbf7ef;border:1px solid #eadfce;color:#4b4238;font-size:15px;line-height:24px;">
           <strong>${escapeHtml(subject)}</strong><br />${escapeHtml(message).replaceAll("\n", "<br />")}
         </div>
+      `
+    )
+  });
+}
+
+export async function sendContactFollowUpCustomer(query: ContactQuery) {
+  await sendTrackedEmail({
+    queryId: query.id,
+    type: "contact_follow_up_customer",
+    to: [query.email],
+    subject: `We received your reply ${query.code}`,
+    html: emailShell(
+      `We received your reply for inquiry ${query.code}.`,
+      "Thanks for the update",
+      `Hi ${escapeHtml(query.name)}, thanks for sending that over. Your message has been added to inquiry <strong>${escapeHtml(query.code)}</strong>, and an admin will respond shortly.`,
+      `
+        <div style="margin-top:20px;padding:18px;border-radius:18px;background:#fbf7ef;border:1px solid #eadfce;">
+          <p style="margin:0;color:#9a7b36;font-size:12px;font-weight:700;letter-spacing:2px;text-transform:uppercase;">Inquiry code</p>
+          <p style="margin:8px 0 0;font-family:Georgia,serif;font-size:30px;color:#1f1a14;">${escapeHtml(query.code)}</p>
+          <p style="margin:14px 0 0;color:#63594c;font-size:14px;line-height:22px;">We have your reply in the studio queue.</p>
+        </div>
+        <p style="margin:20px 0 0;color:#63594c;font-size:15px;line-height:24px;">No extra action is needed right now. If you send more details, keep <strong>${escapeHtml(query.code)}</strong> in the subject so everything stays together.</p>
       `
     )
   });

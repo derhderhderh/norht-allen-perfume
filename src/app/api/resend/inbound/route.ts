@@ -3,13 +3,17 @@ import { NextRequest, NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import { Resend } from "resend";
 import { getAdminDb } from "@/lib/firebase-admin";
-import { sendContactFollowUpAdmin, sendContactQueryAdmin, sendContactQueryCustomer } from "@/lib/email";
+import { sendContactFollowUpAdmin, sendContactFollowUpCustomer, sendContactQueryAdmin, sendContactQueryCustomer } from "@/lib/email";
 import type { ContactQuery } from "@/lib/types";
 
 type UnknownRecord = Record<string, unknown>;
 
 const companyEmail = "contact@northallenperfumery.org";
 const inquiryCodePattern = /NAP-\d{6}-[A-Z0-9]{5}/i;
+
+function logInbound(stage: string, data: UnknownRecord = {}) {
+  console.log("[resend-inbound]", JSON.stringify({ stage, ...data }));
+}
 
 function queryCode() {
   const stamp = new Date().toISOString().slice(2, 10).replaceAll("-", "");
@@ -19,23 +23,28 @@ function queryCode() {
 
 function verifySvixSignature(rawBody: string, request: NextRequest) {
   const secret = process.env.RESEND_WEBHOOK_SECRET;
-  if (!secret) return false;
+  if (!secret) return { ok: false, reason: "missing_RESEND_WEBHOOK_SECRET" };
 
   const id = request.headers.get("svix-id");
   const timestamp = request.headers.get("svix-timestamp");
   const signature = request.headers.get("svix-signature");
-  if (!id || !timestamp || !signature) return false;
+  if (!id || !timestamp || !signature) return { ok: false, reason: "missing_svix_headers" };
 
-  const secretBytes = Buffer.from(secret.replace(/^whsec_/, ""), "base64");
-  const signedContent = `${id}.${timestamp}.${rawBody}`;
-  const expected = createHmac("sha256", secretBytes).update(signedContent).digest("base64");
+  try {
+    const secretBytes = Buffer.from(secret.replace(/^whsec_/, ""), "base64");
+    const signedContent = `${id}.${timestamp}.${rawBody}`;
+    const expected = createHmac("sha256", secretBytes).update(signedContent).digest("base64");
+    const ok = signature.split(" ").some((part) => {
+      const candidate = part.includes(",") ? part.split(",").pop() || "" : part.replace(/^v\d+,/, "");
+      const expectedBytes = Buffer.from(expected);
+      const candidateBytes = Buffer.from(candidate);
+      return expectedBytes.length === candidateBytes.length && timingSafeEqual(expectedBytes, candidateBytes);
+    });
 
-  return signature.split(" ").some((part) => {
-    const candidate = part.includes(",") ? part.split(",").pop() || "" : part.replace(/^v\d+,/, "");
-    const expectedBytes = Buffer.from(expected);
-    const candidateBytes = Buffer.from(candidate);
-    return expectedBytes.length === candidateBytes.length && timingSafeEqual(expectedBytes, candidateBytes);
-  });
+    return ok ? { ok: true } : { ok: false, reason: "signature_mismatch" };
+  } catch {
+    return { ok: false, reason: "invalid_webhook_secret_format" };
+  }
 }
 
 function stringValue(value: unknown) {
@@ -82,8 +91,11 @@ async function getInboundEmailContent(emailId: string, fallback: UnknownRecord) 
   if (!process.env.RESEND_API_KEY) return fallback;
 
   const resend = new Resend(process.env.RESEND_API_KEY);
-  const result = await resend.emails.get(emailId);
-  if (result.error || !result.data) return fallback;
+  const result = await resend.get<UnknownRecord>(`/emails/receiving/${emailId}`);
+  if (result.error || !result.data) {
+    logInbound("received_email_fetch_failed", { emailId, error: result.error?.message || "unknown" });
+    return fallback;
+  }
   return { ...fallback, ...result.data } as UnknownRecord;
 }
 
@@ -105,70 +117,97 @@ export async function GET() {
     ok: true,
     endpoint: "resend-inbound",
     accepts: "POST",
-    event: "email.received"
+    event: "email.received",
+    configured: {
+      resendApiKey: Boolean(process.env.RESEND_API_KEY),
+      resendWebhookSecret: Boolean(process.env.RESEND_WEBHOOK_SECRET),
+      firebaseAdmin: Boolean(process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_CLIENT_EMAIL && process.env.FIREBASE_PRIVATE_KEY)
+    }
   });
 }
 
 export async function POST(request: NextRequest) {
-  const rawBody = await request.text();
-  if (!verifySvixSignature(rawBody, request)) {
-    return NextResponse.json({ error: "Invalid Resend webhook signature" }, { status: 401 });
-  }
-
-  const payload = JSON.parse(rawBody) as UnknownRecord;
-  if (payload.type !== "email.received") return NextResponse.json({ ok: true, ignored: true });
-
-  const { eventData, emailId } = normalizeInboundEmail(payload);
-  const email = emailId ? await getInboundEmailContent(emailId, eventData) : eventData;
-  const fromEmail = emailFrom(email.from);
-  const fromName = nameFrom(email.from, fromEmail);
-  const subject = stringValue(email.subject) || "Contact inquiry";
-  const text = stringValue(email.text) || textFromHtml(stringValue(email.html)) || "No message content was provided.";
-  const code = `${subject}\n${text}`.match(inquiryCodePattern)?.[0]?.toUpperCase();
-
-  if (!fromEmail || fromEmail.toLowerCase().endsWith("@northallenperfumery.org")) {
-    return NextResponse.json({ ok: true, ignored: true });
-  }
-
-  const message = {
-    id: randomUUID(),
-    from: "customer",
-    senderName: fromName,
-    senderEmail: fromEmail,
-    subject,
-    body: text,
-    createdAt: new Date().toISOString()
-  };
-
-  if (code) {
-    const existing = await findQueryByCode(code);
-    if (existing) {
-      await existing.ref.update({
-        messages: FieldValue.arrayUnion(message),
-        status: "open",
-        updatedAt: FieldValue.serverTimestamp(),
-        lastMessageAt: FieldValue.serverTimestamp()
+  try {
+    const rawBody = await request.text();
+    const verification = verifySvixSignature(rawBody, request);
+    if (!verification.ok) {
+      logInbound("signature_failed", {
+        reason: verification.reason,
+        hasSvixId: Boolean(request.headers.get("svix-id")),
+        hasSvixTimestamp: Boolean(request.headers.get("svix-timestamp")),
+        hasSvixSignature: Boolean(request.headers.get("svix-signature"))
       });
-      await sendContactFollowUpAdmin(existing.query, subject, text, fromEmail);
-      return NextResponse.json({ ok: true, appended: true, code });
+      return NextResponse.json({ error: "Invalid Resend webhook signature", reason: verification.reason }, { status: 401 });
     }
+
+    const payload = JSON.parse(rawBody) as UnknownRecord;
+    if (payload.type !== "email.received") {
+      logInbound("ignored_event_type", { type: stringValue(payload.type) || "unknown" });
+      return NextResponse.json({ ok: true, ignored: true });
+    }
+
+    const { eventData, emailId } = normalizeInboundEmail(payload);
+    logInbound("received", { emailId: emailId || "missing" });
+    const email = emailId ? await getInboundEmailContent(emailId, eventData) : eventData;
+    const fromEmail = emailFrom(email.from);
+    const fromName = nameFrom(email.from, fromEmail);
+    const subject = stringValue(email.subject) || "Contact inquiry";
+    const text = stringValue(email.text) || textFromHtml(stringValue(email.html)) || "No message content was provided.";
+    const code = `${subject}\n${text}`.match(inquiryCodePattern)?.[0]?.toUpperCase();
+
+    if (!fromEmail || fromEmail.toLowerCase().endsWith("@northallenperfumery.org")) {
+      logInbound("ignored_sender", { fromEmail: fromEmail || "missing" });
+      return NextResponse.json({ ok: true, ignored: true });
+    }
+
+    const message = {
+      id: randomUUID(),
+      from: "customer",
+      senderName: fromName,
+      senderEmail: fromEmail,
+      subject,
+      body: text,
+      createdAt: new Date().toISOString()
+    };
+
+    if (code) {
+      const existing = await findQueryByCode(code);
+      if (existing) {
+        await existing.ref.update({
+          messages: FieldValue.arrayUnion(message),
+          status: "open",
+          updatedAt: FieldValue.serverTimestamp(),
+          lastMessageAt: FieldValue.serverTimestamp()
+        });
+        await Promise.all([
+          sendContactFollowUpAdmin(existing.query, subject, text, fromEmail),
+          sendContactFollowUpCustomer(existing.query)
+        ]);
+        logInbound("appended_query", { code, fromEmail });
+        return NextResponse.json({ ok: true, appended: true, code });
+      }
+    }
+
+    const newCode = queryCode();
+    const ref = await getAdminDb().collection("contactQueries").add({
+      name: fromName,
+      email: fromEmail,
+      subject,
+      message: text,
+      messages: [message],
+      code: newCode,
+      status: "open",
+      createdAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+      lastMessageAt: FieldValue.serverTimestamp()
+    });
+    const query = { id: ref.id, name: fromName, email: fromEmail, subject, message: text, messages: [message], code: newCode, status: "open" } as ContactQuery;
+    await Promise.all([sendContactQueryCustomer(query), sendContactQueryAdmin(query)]);
+
+    logInbound("created_query", { code: newCode, fromEmail });
+    return NextResponse.json({ ok: true, created: true, code: newCode });
+  } catch (error) {
+    logInbound("error", { error: error instanceof Error ? error.message : "Unknown inbound webhook error" });
+    return NextResponse.json({ error: "Inbound webhook failed" }, { status: 500 });
   }
-
-  const newCode = queryCode();
-  const ref = await getAdminDb().collection("contactQueries").add({
-    name: fromName,
-    email: fromEmail,
-    subject,
-    message: text,
-    messages: [message],
-    code: newCode,
-    status: "open",
-    createdAt: FieldValue.serverTimestamp(),
-    updatedAt: FieldValue.serverTimestamp(),
-    lastMessageAt: FieldValue.serverTimestamp()
-  });
-  const query = { id: ref.id, name: fromName, email: fromEmail, subject, message: text, messages: [message], code: newCode, status: "open" } as ContactQuery;
-  await Promise.all([sendContactQueryCustomer(query), sendContactQueryAdmin(query)]);
-
-  return NextResponse.json({ ok: true, created: true, code: newCode });
 }
