@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { Cormorant_Garamond, Inter } from "next/font/google";
-import Script from "next/script";
 import "./globals.css";
 import { AuthProvider } from "@/components/auth-provider";
 import { BagProvider } from "@/components/bag-provider";
@@ -27,12 +26,14 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en">
-      <Script
-        async
-        src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-2478580166735674"
-        crossOrigin="anonymous"
-        strategy="afterInteractive"
-      />
+      <head>
+        <meta name="google-adsense-account" content="ca-pub-2478580166735674" />
+        <script
+          async
+          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-2478580166735674"
+          crossOrigin="anonymous"
+        />
+      </head>
       <body className={`${serif.variable} ${sans.variable} min-h-screen bg-veil font-sans antialiased`}>
         <AuthProvider>
           <BagProvider>
