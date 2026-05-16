@@ -6,6 +6,7 @@ import { BagProvider } from "@/components/bag-provider";
 import { Footer } from "@/components/footer";
 import { Header } from "@/components/header";
 import { Toaster } from "@/components/toaster";
+import { Analytics } from "@vercel/analytics/next";
 
 const serif = Cormorant_Garamond({
   subsets: ["latin"],
@@ -35,6 +36,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
             <Toaster />
           </BagProvider>
         </AuthProvider>
+        <Analytics />
       </body>
     </html>
   );
