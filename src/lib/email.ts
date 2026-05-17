@@ -5,6 +5,7 @@ import type { ContactQuery, OrderStatus, PerfumeOrder } from "@/lib/types";
 import { formatMoney } from "@/lib/utils";
 
 const from = "North Allen Perfumery <orders@northallenperfumery.org>";
+const contactEmail = "contact@northallenperfumery.org";
 const ownerEmail = "wilkinsr542@gmail.com";
 
 function emailClient() {
@@ -134,7 +135,18 @@ function totalsCard(order: PerfumeOrder) {
 async function logEmailEvent(data: {
   orderId?: string;
   queryId?: string;
-  type: "customer_confirmation" | "admin_new_order" | "status_update" | "contact_customer" | "contact_admin" | "contact_reply" | "contact_follow_up" | "contact_follow_up_customer";
+  type:
+    | "customer_confirmation"
+    | "admin_new_order"
+    | "status_update"
+    | "contact_customer"
+    | "contact_admin"
+    | "contact_reply"
+    | "contact_follow_up"
+    | "contact_follow_up_customer"
+    | "contact_form_admin"
+    | "contact_inbound_auto_reply"
+    | "contact_inbound_admin";
   to: string[];
   subject: string;
   status: "sent" | "skipped" | "failed";
@@ -154,10 +166,22 @@ async function logEmailEvent(data: {
 async function sendTrackedEmail(data: {
   orderId?: string;
   queryId?: string;
-  type: "customer_confirmation" | "admin_new_order" | "status_update" | "contact_customer" | "contact_admin" | "contact_reply" | "contact_follow_up" | "contact_follow_up_customer";
+  type:
+    | "customer_confirmation"
+    | "admin_new_order"
+    | "status_update"
+    | "contact_customer"
+    | "contact_admin"
+    | "contact_reply"
+    | "contact_follow_up"
+    | "contact_follow_up_customer"
+    | "contact_form_admin"
+    | "contact_inbound_auto_reply"
+    | "contact_inbound_admin";
   to: string[];
   subject: string;
   html: string;
+  replyTo?: string | string[];
 }) {
   const resend = emailClient();
   if (!resend || data.to.length === 0) {
@@ -170,7 +194,8 @@ async function sendTrackedEmail(data: {
       from,
       to: data.to,
       subject: data.subject,
-      html: data.html
+      html: data.html,
+      replyTo: data.replyTo
     });
 
     if (result.error) {
@@ -257,18 +282,19 @@ export async function sendContactQueryCustomer(query: ContactQuery) {
     queryId: query.id,
     type: "contact_customer",
     to: [query.email],
-    subject: `North Allen Perfumery inquiry ${query.code}`,
+    subject: "We received your message",
+    replyTo: contactEmail,
     html: emailShell(
-      `Your inquiry code is ${query.code}.`,
-      "We received your note",
-      `Hi ${escapeHtml(query.name)}, your inquiry has been created. To continue the conversation from your own email, send a message to <strong>contact@northallenperfumery.org</strong> and include this code in the subject: <strong>${escapeHtml(query.code)}</strong>.`,
+      "We received your message and will respond shortly.",
+      "We received your message",
+      `Hi ${escapeHtml(query.name)}, thanks for reaching out to North Allen Perfumery. Your message is in the studio inbox, and an admin will respond shortly.`,
       `
         <div style="margin-top:20px;padding:18px;border-radius:18px;background:#fbf7ef;border:1px solid #eadfce;">
-          <p style="margin:0;color:#9a7b36;font-size:12px;font-weight:700;letter-spacing:2px;text-transform:uppercase;">Inquiry code</p>
-          <p style="margin:8px 0 0;font-family:Georgia,serif;font-size:30px;color:#1f1a14;">${escapeHtml(query.code)}</p>
-          <p style="margin:14px 0 0;color:#63594c;font-size:14px;line-height:22px;">${escapeHtml(query.message)}</p>
+          <p style="margin:0;color:#9a7b36;font-size:12px;font-weight:700;letter-spacing:2px;text-transform:uppercase;">Subject</p>
+          <p style="margin:8px 0 0;font-family:Georgia,serif;font-size:26px;color:#1f1a14;">${escapeHtml(query.subject)}</p>
+          <p style="margin:14px 0 0;color:#63594c;font-size:14px;line-height:22px;">${escapeHtml(query.message).replaceAll("\n", "<br />")}</p>
         </div>
-        <p style="margin:20px 0 0;color:#63594c;font-size:15px;line-height:24px;">Email <strong>contact@northallenperfumery.org</strong> with this code so the studio can match your message to the inquiry in the dashboard.</p>
+        <p style="margin:20px 0 0;color:#63594c;font-size:15px;line-height:24px;">You can reply directly to this email, or email <strong>${contactEmail}</strong>, and the conversation will stay in the admin dashboard.</p>
       `
     )
   });
@@ -277,21 +303,23 @@ export async function sendContactQueryCustomer(query: ContactQuery) {
 export async function sendContactQueryAdmin(query: ContactQuery) {
   await sendTrackedEmail({
     queryId: query.id,
-    type: "contact_admin",
+    type: query.source === "contact_form" ? "contact_form_admin" : "contact_inbound_admin",
     to: adminRecipients(),
-    subject: `New inquiry ${query.code}: ${query.subject}`,
+    subject: query.source === "contact_form" ? `New contact form: ${query.subject}` : `New email to North Allen: ${query.subject}`,
+    replyTo: query.email,
     html: emailShell(
-      `${query.name} created an inquiry.`,
-      "New customer inquiry",
-      `<strong>${escapeHtml(query.name)}</strong> opened a contact query from the website.`,
+      `${query.name} sent a message.`,
+      query.source === "contact_form" ? "New contact form" : "New customer email",
+      query.source === "contact_form"
+        ? `<strong>${escapeHtml(query.name)}</strong> filled out the website contact form. Send the response from the admin dashboard.`
+        : `<strong>${escapeHtml(query.name)}</strong> emailed ${contactEmail}. Continue the conversation from the admin dashboard.`,
       `
         <div style="margin-top:20px;padding:18px;border-radius:18px;background:#1f1a14;color:#fffdf8;">
-          <p style="margin:0;color:#d7b56d;font-size:12px;font-weight:700;letter-spacing:2px;text-transform:uppercase;">Code</p>
-          <p style="margin:8px 0 0;font-family:Georgia,serif;font-size:28px;">${escapeHtml(query.code)}</p>
-          <p style="margin:16px 0 0;color:#fffdf8;font-size:15px;line-height:23px;">${escapeHtml(query.name)}<br />${escapeHtml(query.email)}</p>
+          <p style="margin:0;color:#d7b56d;font-size:12px;font-weight:700;letter-spacing:2px;text-transform:uppercase;">Customer</p>
+          <p style="margin:8px 0 0;color:#fffdf8;font-size:15px;line-height:23px;">${escapeHtml(query.name)}<br />${escapeHtml(query.email)}</p>
         </div>
         <div style="margin-top:16px;padding:18px;border-radius:18px;background:#fbf7ef;border:1px solid #eadfce;color:#4b4238;font-size:15px;line-height:24px;">
-          <strong>${escapeHtml(query.subject)}</strong><br />${escapeHtml(query.message)}
+          <strong>${escapeHtml(query.subject)}</strong><br />${escapeHtml(query.message).replaceAll("\n", "<br />")}
         </div>
       `
     )
@@ -304,13 +332,14 @@ export async function sendContactReply(query: ContactQuery, subject: string, mes
     type: "contact_reply",
     to: [query.email],
     subject,
+    replyTo: contactEmail,
     html: emailShell(
-      `Reply for inquiry ${query.code}.`,
+      "A reply from North Allen Perfumery.",
       "A note from the studio",
-      `Hi ${escapeHtml(query.name)}, the studio sent an update for inquiry <strong>${escapeHtml(query.code)}</strong>.`,
+      `Hi ${escapeHtml(query.name)}, the studio sent you a reply.`,
       `
         <div style="margin-top:20px;padding:18px;border-radius:18px;background:#fbf7ef;border:1px solid #eadfce;color:#4b4238;font-size:15px;line-height:24px;">${escapeHtml(message).replaceAll("\n", "<br />")}</div>
-        <p style="margin:20px 0 0;color:#63594c;font-size:15px;line-height:24px;">To reply from your own email, send a message to <strong>contact@northallenperfumery.org</strong> and include <strong>${escapeHtml(query.code)}</strong> in the subject.</p>
+        <p style="margin:20px 0 0;color:#63594c;font-size:15px;line-height:24px;">Reply directly to this email and the conversation will stay with the studio.</p>
       `
     )
   });
@@ -321,17 +350,16 @@ export async function sendContactFollowUpAdmin(query: ContactQuery, subject: str
     queryId: query.id,
     type: "contact_follow_up",
     to: adminRecipients(),
-    subject: `Reply received ${query.code}: ${subject}`,
+    subject: `Customer replied: ${subject}`,
+    replyTo: fromEmail,
     html: emailShell(
-      `${query.name} replied to inquiry ${query.code}.`,
+      `${query.name} replied to the studio conversation.`,
       "Customer reply received",
-      `<strong>${escapeHtml(query.name)}</strong> replied to inquiry <strong>${escapeHtml(query.code)}</strong>. The conversation has been added to the admin dashboard.`,
+      `<strong>${escapeHtml(query.name)}</strong> replied by email. The message has been added to the admin dashboard conversation.`,
       `
         <div style="margin-top:20px;padding:18px;border-radius:18px;background:#1f1a14;color:#fffdf8;">
           <p style="margin:0;color:#d7b56d;font-size:12px;font-weight:700;letter-spacing:2px;text-transform:uppercase;">Customer</p>
           <p style="margin:8px 0 0;color:#fffdf8;font-size:15px;line-height:23px;">${escapeHtml(query.name)}<br />${escapeHtml(fromEmail)}</p>
-          <p style="margin:16px 0 0;color:#d7b56d;font-size:12px;font-weight:700;letter-spacing:2px;text-transform:uppercase;">Code</p>
-          <p style="margin:8px 0 0;font-family:Georgia,serif;font-size:28px;">${escapeHtml(query.code)}</p>
         </div>
         <div style="margin-top:16px;padding:18px;border-radius:18px;background:#fbf7ef;border:1px solid #eadfce;color:#4b4238;font-size:15px;line-height:24px;">
           <strong>${escapeHtml(subject)}</strong><br />${escapeHtml(message).replaceAll("\n", "<br />")}
@@ -346,18 +374,19 @@ export async function sendContactFollowUpCustomer(query: ContactQuery) {
     queryId: query.id,
     type: "contact_follow_up_customer",
     to: [query.email],
-    subject: `We received your reply ${query.code}`,
+    subject: "We received your reply",
+    replyTo: contactEmail,
     html: emailShell(
-      `We received your reply for inquiry ${query.code}.`,
+      "We received your reply.",
       "Thanks for the update",
-      `Hi ${escapeHtml(query.name)}, thanks for sending that over. Your message has been added to inquiry <strong>${escapeHtml(query.code)}</strong>, and an admin will respond shortly.`,
+      `Hi ${escapeHtml(query.name)}, thanks for sending that over. Your reply is in the studio inbox, and an admin will respond shortly.`,
       `
         <div style="margin-top:20px;padding:18px;border-radius:18px;background:#fbf7ef;border:1px solid #eadfce;">
-          <p style="margin:0;color:#9a7b36;font-size:12px;font-weight:700;letter-spacing:2px;text-transform:uppercase;">Inquiry code</p>
-          <p style="margin:8px 0 0;font-family:Georgia,serif;font-size:30px;color:#1f1a14;">${escapeHtml(query.code)}</p>
+          <p style="margin:0;color:#9a7b36;font-size:12px;font-weight:700;letter-spacing:2px;text-transform:uppercase;">Status</p>
+          <p style="margin:8px 0 0;font-family:Georgia,serif;font-size:28px;color:#1f1a14;">Received</p>
           <p style="margin:14px 0 0;color:#63594c;font-size:14px;line-height:22px;">We have your reply in the studio queue.</p>
         </div>
-        <p style="margin:20px 0 0;color:#63594c;font-size:15px;line-height:24px;">No extra action is needed right now. If you send more details, keep <strong>${escapeHtml(query.code)}</strong> in the subject so everything stays together.</p>
+        <p style="margin:20px 0 0;color:#63594c;font-size:15px;line-height:24px;">No extra action is needed right now.</p>
       `
     )
   });

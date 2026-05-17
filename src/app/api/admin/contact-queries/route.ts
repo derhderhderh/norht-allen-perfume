@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import { z } from "zod";
 import { getAdminDb, requireAdmin } from "@/lib/firebase-admin";
-import { sendContactQueryAdmin, sendContactQueryCustomer, sendContactReply } from "@/lib/email";
+import { sendContactReply } from "@/lib/email";
 import type { ContactQuery } from "@/lib/types";
 
 const schema = z.object({
@@ -69,13 +69,14 @@ export async function POST(request: NextRequest) {
       message: body.message,
       messages: [message],
       code,
+      source: "admin",
       status: "open",
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
       lastMessageAt: FieldValue.serverTimestamp()
     });
-    const query = { id: ref.id, name: body.name, email: body.email, subject: body.subject, message: body.message, messages: [message], code, status: "open" } as ContactQuery;
-    await Promise.all([sendContactQueryCustomer(query), sendContactQueryAdmin(query)]);
+    const query = { id: ref.id, name: body.name, email: body.email, subject: body.subject, message: body.message, messages: [message], code, source: "admin", status: "open" } as ContactQuery;
+    await sendContactReply(query, body.subject, body.message);
     return NextResponse.json({ ok: true, id: ref.id });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Unable to send query email" }, { status: 400 });

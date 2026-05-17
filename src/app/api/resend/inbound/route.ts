@@ -9,7 +9,6 @@ import type { ContactQuery } from "@/lib/types";
 type UnknownRecord = Record<string, unknown>;
 
 const companyEmail = "contact@northallenperfumery.org";
-const inquiryCodePattern = /NAP-\d{6}-[A-Z0-9]{5}/i;
 
 function logInbound(stage: string, data: UnknownRecord = {}) {
   console.log("[resend-inbound]", JSON.stringify({ stage, ...data }));
@@ -105,8 +104,26 @@ function normalizeInboundEmail(payload: UnknownRecord) {
   return { eventData, emailId };
 }
 
-async function findQueryByCode(code: string) {
-  const snap = await getAdminDb().collection("contactQueries").where("code", "==", code.toUpperCase()).limit(1).get();
+function normalizeSubject(subject: string) {
+  return subject.toLowerCase().replace(/^(re|fw|fwd):\s*/i, "").trim();
+}
+
+async function findExistingConversation(email: string, subject: string) {
+  const snap = await getAdminDb().collection("contactQueries").where("email", "==", email).limit(25).get();
+  if (snap.empty) return null;
+  const docs = snap.docs
+    .map((doc) => ({ ref: doc.ref, query: { id: doc.id, ...doc.data() } as ContactQuery }))
+    .sort((a, b) => ((b.query.lastMessageAt || b.query.updatedAt || b.query.createdAt)?.toMillis?.() || 0) - ((a.query.lastMessageAt || a.query.updatedAt || a.query.createdAt)?.toMillis?.() || 0));
+  const normalized = normalizeSubject(subject);
+  const matchingSubject = docs.find((item) => normalizeSubject(item.query.subject) === normalized);
+  const openThread = docs.find((item) => item.query.status === "open");
+  return matchingSubject || openThread || docs[0] || null;
+}
+
+async function findQueryByLegacyCode(rawText: string) {
+  const code = rawText.match(/NAP-\d{6}-[A-Z0-9]{5}/i)?.[0]?.toUpperCase();
+  if (!code) return null;
+  const snap = await getAdminDb().collection("contactQueries").where("code", "==", code).limit(1).get();
   if (snap.empty) return null;
   const doc = snap.docs[0];
   return { ref: doc.ref, query: { id: doc.id, ...doc.data() } as ContactQuery };
@@ -153,7 +170,6 @@ export async function POST(request: NextRequest) {
     const fromName = nameFrom(email.from, fromEmail);
     const subject = stringValue(email.subject) || "Contact inquiry";
     const text = stringValue(email.text) || textFromHtml(stringValue(email.html)) || "No message content was provided.";
-    const code = `${subject}\n${text}`.match(inquiryCodePattern)?.[0]?.toUpperCase();
 
     if (!fromEmail || fromEmail.toLowerCase().endsWith("@northallenperfumery.org")) {
       logInbound("ignored_sender", { fromEmail: fromEmail || "missing" });
@@ -170,22 +186,20 @@ export async function POST(request: NextRequest) {
       createdAt: new Date().toISOString()
     };
 
-    if (code) {
-      const existing = await findQueryByCode(code);
-      if (existing) {
-        await existing.ref.update({
-          messages: FieldValue.arrayUnion(message),
-          status: "open",
-          updatedAt: FieldValue.serverTimestamp(),
-          lastMessageAt: FieldValue.serverTimestamp()
-        });
-        await Promise.all([
-          sendContactFollowUpAdmin(existing.query, subject, text, fromEmail),
-          sendContactFollowUpCustomer(existing.query)
-        ]);
-        logInbound("appended_query", { code, fromEmail });
-        return NextResponse.json({ ok: true, appended: true, code });
-      }
+    const existing = (await findQueryByLegacyCode(`${subject}\n${text}`)) || (await findExistingConversation(fromEmail, subject));
+    if (existing) {
+      await existing.ref.update({
+        messages: FieldValue.arrayUnion(message),
+        status: "open",
+        updatedAt: FieldValue.serverTimestamp(),
+        lastMessageAt: FieldValue.serverTimestamp()
+      });
+      await Promise.all([
+        sendContactFollowUpAdmin(existing.query, subject, text, fromEmail),
+        sendContactFollowUpCustomer(existing.query)
+      ]);
+      logInbound("appended_conversation", { queryId: existing.query.id, fromEmail });
+      return NextResponse.json({ ok: true, appended: true, id: existing.query.id });
     }
 
     const newCode = queryCode();
@@ -196,12 +210,13 @@ export async function POST(request: NextRequest) {
       message: text,
       messages: [message],
       code: newCode,
+      source: "inbound_email",
       status: "open",
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
       lastMessageAt: FieldValue.serverTimestamp()
     });
-    const query = { id: ref.id, name: fromName, email: fromEmail, subject, message: text, messages: [message], code: newCode, status: "open" } as ContactQuery;
+    const query = { id: ref.id, name: fromName, email: fromEmail, subject, message: text, messages: [message], code: newCode, source: "inbound_email", status: "open" } as ContactQuery;
     await Promise.all([sendContactQueryCustomer(query), sendContactQueryAdmin(query)]);
 
     logInbound("created_query", { code: newCode, fromEmail });

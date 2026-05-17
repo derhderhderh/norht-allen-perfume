@@ -35,16 +35,17 @@ export async function POST(request: NextRequest) {
       ...body,
       code,
       messages: [message],
+      source: "contact_form",
       status: "open",
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
       lastMessageAt: FieldValue.serverTimestamp()
     });
 
-    const query = { id: ref.id, ...body, code, messages: [message], status: "open" } as ContactQuery;
+    const query = { id: ref.id, ...body, code, messages: [message], source: "contact_form", status: "open" } as ContactQuery;
     await Promise.all([sendContactQueryCustomer(query), sendContactQueryAdmin(query)]);
 
-    return NextResponse.json({ ok: true, code });
+    return NextResponse.json({ ok: true });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Unable to create inquiry" }, { status: 400 });
   }

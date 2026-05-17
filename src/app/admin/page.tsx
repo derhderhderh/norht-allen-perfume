@@ -168,7 +168,7 @@ export default function AdminPage() {
           id: currentQueryId,
           name: item?.name || queryForm.name,
           email: item?.email || queryForm.email,
-          subject: item ? `Re: ${item.subject} [${item.code}]` : queryForm.subject,
+          subject: item ? replySubject(item.subject) : queryForm.subject,
           message: "",
           close: false
         });
@@ -190,7 +190,7 @@ export default function AdminPage() {
       id: item.id,
       name: item.name,
       email: item.email,
-      subject: item.subject.startsWith("Re:") ? `${item.subject} [${item.code}]` : `Re: ${item.subject} [${item.code}]`,
+      subject: replySubject(item.subject),
       message: "",
       close: false
     });
@@ -219,7 +219,7 @@ export default function AdminPage() {
         </div>
         <div className="flex rounded-full border border-ink/10 bg-white/60 p-1">
           {(["orders", "notes", "pricing", "promos", "queries", "emails"] as const).map((item) => (
-            <button key={item} onClick={() => setTab(item)} className={`rounded-full px-4 py-2 text-sm font-semibold capitalize ${tab === item ? "bg-ink text-pearl" : "text-ink/65"}`}>{item}</button>
+            <button key={item} onClick={() => setTab(item)} className={`rounded-full px-4 py-2 text-sm font-semibold capitalize ${tab === item ? "bg-ink text-pearl" : "text-ink/65"}`}>{item === "queries" ? "inbox" : item}</button>
           ))}
         </div>
       </div>
@@ -263,14 +263,14 @@ export default function AdminPage() {
             <div className="border-b border-ink/10 p-5">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.22em] text-champagne">Customer queries</p>
+                  <p className="text-xs font-semibold uppercase tracking-[0.22em] text-champagne">Studio inbox</p>
                   <h2 className="mt-2 font-serif text-3xl font-semibold">{openQueries} open</h2>
                 </div>
-                <Button type="button" variant="secondary" onClick={startNewQuery}><Plus className="h-4 w-4" /> New</Button>
+                <Button type="button" variant="secondary" onClick={startNewQuery}><Plus className="h-4 w-4" /> Compose</Button>
               </div>
             </div>
             <div className="max-h-[680px] overflow-y-auto p-3">
-              {contactQueries.length === 0 ? <EmptyState title="No queries yet" body="Contact form inquiries and admin-created email threads will appear here." /> : null}
+              {contactQueries.length === 0 ? <EmptyState title="No email threads yet" body="Contact form submissions, inbound emails, and admin-created messages will appear here." /> : null}
               {contactQueries.map((item) => {
                 const messages = getQueryMessages(item);
                 const last = messages[messages.length - 1];
@@ -285,7 +285,7 @@ export default function AdminPage() {
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <p className="truncate font-semibold">{item.subject}</p>
-                        <p className="mt-1 truncate text-xs text-ink/55">{item.name} - {item.code}</p>
+                        <p className="mt-1 truncate text-xs text-ink/55">{item.name} - {item.email}</p>
                       </div>
                       <span className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider ${item.status === "open" ? "bg-moss/10 text-moss" : "bg-ink/10 text-ink/60"}`}>{item.status}</span>
                     </div>
@@ -301,8 +301,8 @@ export default function AdminPage() {
             {creatingQuery ? (
               <form onSubmit={sendQueryEmail} className="glass grid gap-4 rounded-[1.5rem] p-6">
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.22em] text-champagne">Start a thread</p>
-                  <h2 className="mt-2 font-serif text-3xl font-semibold">Create email query</h2>
+                  <p className="text-xs font-semibold uppercase tracking-[0.22em] text-champagne">Compose email</p>
+                  <h2 className="mt-2 font-serif text-3xl font-semibold">Start a conversation</h2>
                 </div>
                 <div className="grid gap-4 md:grid-cols-2">
                   <Field label="Customer name"><Input value={queryForm.name} onChange={(e) => setQueryForm({ ...queryForm, name: e.target.value })} required /></Field>
@@ -310,14 +310,14 @@ export default function AdminPage() {
                 </div>
                 <Field label="Subject"><Input value={queryForm.subject} onChange={(e) => setQueryForm({ ...queryForm, subject: e.target.value })} required /></Field>
                 <Field label="Message"><Textarea value={queryForm.message} onChange={(e) => setQueryForm({ ...queryForm, message: e.target.value })} required /></Field>
-                <Button loading={saving}>Create query and email customer</Button>
+                <Button loading={saving}>Send email</Button>
               </form>
             ) : selectedContactQuery ? (
               <>
                 <article className="glass rounded-[1.5rem] p-6">
                   <div className="flex flex-wrap items-start justify-between gap-4 border-b border-ink/10 pb-5">
                     <div>
-                      <p className="text-xs font-semibold uppercase tracking-[0.22em] text-champagne">{selectedContactQuery.code}</p>
+                      <p className="text-xs font-semibold uppercase tracking-[0.22em] text-champagne">{sourceLabel(selectedContactQuery.source)}</p>
                       <h2 className="mt-2 font-serif text-4xl font-semibold">{selectedContactQuery.subject}</h2>
                       <p className="mt-2 text-sm text-ink/60">{selectedContactQuery.name} - {selectedContactQuery.email}</p>
                     </div>
@@ -349,12 +349,12 @@ export default function AdminPage() {
                   </div>
                   <Field label="Subject"><Input value={queryForm.subject} onChange={(e) => setQueryForm({ ...queryForm, subject: e.target.value })} required /></Field>
                   <Field label="Message"><Textarea value={queryForm.message} onChange={(e) => setQueryForm({ ...queryForm, message: e.target.value })} required /></Field>
-                  <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={queryForm.close} onChange={(e) => setQueryForm({ ...queryForm, close: e.target.checked })} /> Close query after sending</label>
+                  <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={queryForm.close} onChange={(e) => setQueryForm({ ...queryForm, close: e.target.checked })} /> Close conversation after sending</label>
                   <Button loading={saving}>Send reply</Button>
                 </form>
               </>
             ) : (
-              <EmptyState title="No query selected" body="Choose a customer query or create a new email thread." />
+              <EmptyState title="No conversation selected" body="Choose an email thread or compose a new message." />
             )}
           </div>
         </div>
@@ -455,6 +455,17 @@ function formatQueryDate(value?: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
   return date.toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+}
+
+function replySubject(subject: string) {
+  return subject.trim().toLowerCase().startsWith("re:") ? subject : `Re: ${subject}`;
+}
+
+function sourceLabel(source?: ContactQuery["source"]) {
+  if (source === "contact_form") return "Contact form";
+  if (source === "inbound_email") return "Inbound email";
+  if (source === "admin") return "Admin sent";
+  return "Email conversation";
 }
 
 function PricingEditor({ options, setOptions, save, saving }: { options: ProductOptions; setOptions: (options: ProductOptions) => void; save: () => void; saving: boolean }) {

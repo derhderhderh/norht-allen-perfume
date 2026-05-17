@@ -20,7 +20,7 @@ export default function ContactPage() {
     });
     const data = await res.json();
     setState(res.ok ? "sent" : "error");
-    setMessage(res.ok ? `Inquiry created. Check your email for code ${data.code} and send follow-ups to contact@northallenperfumery.org.` : data.error || "Something went wrong. Please try again.");
+    setMessage(res.ok ? "Message sent. We emailed you a confirmation and will respond shortly." : data.error || "Something went wrong. Please try again.");
     if (res.ok) event.currentTarget.reset();
   }
 
@@ -30,7 +30,7 @@ export default function ContactPage() {
       <Section className="grid gap-10 pt-6 lg:grid-cols-[.8fr_1.2fr]">
         <div className="text-sm leading-7 text-ink/68">
           <p>North Allen, Texas</p>
-          <p>orders@northallenperfumery.com</p>
+          <p>contact@northallenperfumery.org</p>
           <p>Custom blending by appointment and online order.</p>
         </div>
         <form onSubmit={submit} className="glass grid gap-4 rounded-[1.5rem] p-6">
