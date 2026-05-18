@@ -117,6 +117,7 @@ function orderDetailsCard(order: PerfumeOrder) {
         <td style="padding:18px 0 6px;">
           <div style="font-family:Georgia,serif;font-size:26px;line-height:30px;color:#1f1a14;">${escapeHtml(order.perfumeName)}</div>
           <div style="margin-top:6px;color:#7a6d5b;font-size:14px;">${escapeHtml(order.bottleSize?.name || "Bottle")} - ${escapeHtml(order.scentStrength?.name || "Strength")}</div>
+          ${order.confirmationCode ? `<div style="margin-top:12px;color:#9a7b36;font-size:13px;letter-spacing:1.5px;text-transform:uppercase;">Phone code: ${escapeHtml(order.confirmationCode)}</div>` : ""}
         </td>
       </tr>
       ${selectedNotes(order)}
@@ -225,7 +226,7 @@ export async function sendCustomerConfirmation(order: PerfumeOrder) {
       `
         ${orderDetailsCard(order)}
         ${totalsCard(order)}
-        <p style="margin:20px 0 0;color:#63594c;font-size:15px;line-height:24px;">We will begin production shortly and send updates as your bottle moves through the studio.</p>
+        <p style="margin:20px 0 0;color:#63594c;font-size:15px;line-height:24px;">We will begin production shortly and send updates as your bottle moves through the studio. ${order.confirmationCode ? `You can call the studio line and use confirmation code <strong>${escapeHtml(order.confirmationCode)}</strong> to hear your order status.` : ""}</p>
       `
     )
   });

@@ -70,6 +70,7 @@ export default function DashboardPage() {
                 <div>
                   <h2 className="font-serif text-3xl font-semibold">{order.perfumeName}</h2>
                   <p className="mt-1 text-sm text-ink/60">{formatMoney(order.price)} · {order.bottleSize.name} · {order.scentStrength.name}</p>
+                  {order.confirmationCode ? <p className="mt-2 text-xs font-semibold uppercase tracking-[0.18em] text-champagne">Phone code {order.confirmationCode}</p> : null}
                 </div>
                 <span className="rounded-full bg-moss/10 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-moss">{order.orderStatus.replaceAll("_", " ")}</span>
               </div>

@@ -16,5 +16,15 @@ export const checkoutRequestSchema = z.object({
 
 export const checkoutBagRequestSchema = z.object({
   items: z.array(checkoutRequestSchema).min(1).max(10),
-  promoCode: z.string().trim().max(40).optional().default("")
+  promoCode: z.string().trim().max(40).optional().default(""),
+  customerPhone: z.string().trim().max(24).optional().default(""),
+  callOptIn: z.boolean().optional().default(false)
+}).superRefine((value, ctx) => {
+  if (value.callOptIn && !value.customerPhone) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["customerPhone"],
+      message: "Enter a phone number to receive order status calls."
+    });
+  }
 });

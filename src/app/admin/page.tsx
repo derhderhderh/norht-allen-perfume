@@ -247,6 +247,7 @@ export default function AdminPage() {
                 <div>
                   <h2 className="font-serif text-3xl font-semibold">{order.perfumeName}</h2>
                   <p className="text-sm text-ink/60">{order.customerName} · {order.customerEmail} · {formatMoney(order.price)}</p>
+                  {order.confirmationCode ? <p className="mt-2 text-xs font-semibold uppercase tracking-[0.18em] text-champagne">Phone code {order.confirmationCode}</p> : null}
                   <p className="mt-3 text-sm text-ink/68">Payment: {order.paymentStatus}</p>
                 </div>
                 <Select value={order.orderStatus} onChange={(e) => updateStatus(order, e.target.value as OrderStatus)}>

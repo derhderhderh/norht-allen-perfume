@@ -8,6 +8,7 @@ import { checkoutBagRequestSchema } from "@/lib/checkout-schema";
 import { calculatePrice, selectedNoteCount } from "@/lib/pricing";
 import type { FragranceNote, PerfumeOrder, ProductOptions, SelectedNotes } from "@/lib/types";
 import { sendAdminNewOrder, sendCustomerConfirmation } from "@/lib/email";
+import { normalizePhone } from "@/lib/twilio";
 
 async function getOptions() {
   const snap = await getAdminDb().collection("products").doc("options").get();
@@ -41,6 +42,10 @@ function normalizePromo(code: string) {
   return code.trim().toUpperCase();
 }
 
+function confirmationCode() {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+}
+
 async function isFreePromo(code: string) {
   const normalized = normalizePromo(code);
   if (!normalized) return false;
@@ -72,6 +77,8 @@ export async function POST(request: NextRequest) {
     if (!customerEmail) throw new Error("Your account needs an email address before checkout.");
     const promoCode = normalizePromo(body.promoCode);
     const freePromo = promoCode ? await isFreePromo(promoCode) : false;
+    const customerPhone = normalizePhone(body.customerPhone || "");
+    if (body.callOptIn && !customerPhone) throw new Error("Enter a valid phone number for order status calls.");
 
     if (promoCode && !freePromo) {
       throw new Error("That promo code is not active.");
@@ -94,7 +101,10 @@ export async function POST(request: NextRequest) {
       userId: decoded.uid,
       customerName,
       customerEmail,
+      customerPhone,
+      callOptIn: Boolean(body.callOptIn && customerPhone),
       perfumeName: entry.item.perfumeName,
+      confirmationCode: confirmationCode(),
       selectedNotes: entry.selectedNotes,
       bottleSize: entry.bottleSize,
       scentStrength: entry.scentStrength,

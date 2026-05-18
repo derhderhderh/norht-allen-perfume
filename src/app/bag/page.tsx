@@ -13,6 +13,8 @@ export default function BagPage() {
   const { items, removeItem, clearBag } = useBag();
   const [error, setError] = useState("");
   const [promoCode, setPromoCode] = useState("");
+  const [customerPhone, setCustomerPhone] = useState("");
+  const [callOptIn, setCallOptIn] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const router = useRouter();
   const total = items.reduce((sum, item) => sum + item.estimatedPrice, 0);
@@ -37,7 +39,9 @@ export default function BagPage() {
             scentStrengthId: item.scentStrengthId,
             specialInstructions: item.specialInstructions
           })),
-          promoCode
+          promoCode,
+          customerPhone,
+          callOptIn
         })
       });
       const data = await res.json();
@@ -96,6 +100,14 @@ export default function BagPage() {
               <input className="focus-ring w-full rounded-2xl border border-ink/10 bg-white/70 px-4 py-3 text-sm uppercase shadow-sm" value={promoCode} onChange={(event) => setPromoCode(event.target.value.toUpperCase())} placeholder="Enter code" />
             </label>
             {promoCode ? <p className="text-xs text-ink/55">100% off codes are checked when you checkout.</p> : null}
+            <label className="grid gap-2 text-sm font-medium text-ink/75">
+              Phone for status calls
+              <input className="focus-ring w-full rounded-2xl border border-ink/10 bg-white/70 px-4 py-3 text-sm shadow-sm" value={customerPhone} onChange={(event) => setCustomerPhone(event.target.value)} placeholder="(469) 555-0199" />
+            </label>
+            <label className="flex items-start gap-2 text-xs leading-5 text-ink/60">
+              <input className="mt-1" type="checkbox" checked={callOptIn} onChange={(event) => setCallOptIn(event.target.checked)} />
+              I agree to receive automated order status calls from North Allen Perfumery at this number. Message and data rates may apply.
+            </label>
             <p className="border-t border-ink/10 pt-4 font-serif text-4xl font-semibold">{formatMoney(total)}</p>
             <Button onClick={checkout} loading={submitting} disabled={items.length === 0}>Checkout</Button>
             {error ? <p className="text-sm text-rosewood">{error}</p> : null}

@@ -123,10 +123,15 @@ export type PerfumeOrder = {
   customerName: string;
   customerEmail: string;
   perfumeName: string;
+  confirmationCode?: string;
   selectedNotes: SelectedNotes;
   bottleSize: BottleSize;
   scentStrength: ScentStrength;
   specialInstructions: string;
+  customerPhone?: string;
+  callOptIn?: boolean;
+  shippedCallAt?: Timestamp;
+  shippedCallSid?: string;
   subtotal?: number;
   discountAmount?: number;
   promoCode?: string;
