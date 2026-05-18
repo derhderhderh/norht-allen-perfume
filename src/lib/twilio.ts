@@ -2,7 +2,7 @@ import { createHmac, timingSafeEqual } from "crypto";
 import type { NextRequest } from "next/server";
 import type { PerfumeOrder } from "@/lib/types";
 
-const voice = "Polly.Joanna-Neural";
+const voice = "Polly.Amy-Neural";
 const twilioFrom = process.env.TWILIO_PHONE_NUMBER || "+14699403197";
 
 function escapeXml(value: string) {
@@ -19,7 +19,7 @@ export function twiml(body: string) {
 }
 
 export function say(message: string) {
-  return `<Say voice="${voice}">${escapeXml(message)}</Say>`;
+  return `<Say voice="${voice}" language="en-US"><prosody rate="92%" pitch="-2%">${escapeXml(message)}</prosody></Say>`;
 }
 
 export function pause(length = 1) {
